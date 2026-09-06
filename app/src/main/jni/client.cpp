@@ -69,6 +69,7 @@ struct {
     float lodaspeed = 0.0f;
     bool TargetAll = false;
     bool divekillnew = false;
+    bool Aimkillsend = false;
 } pAimbotPlayer;
 
 struct {
@@ -124,7 +125,8 @@ JNIEXPORT void JNICALL
 Java_com_terminalx999_Menu_Functions(JNIEnv *env, jclass clazz) {
     Widget widget = Widget(env);
     widget.Tab(OBFUSCATE("AIM"));
-    widget.Switch(OBFUSCATE("AIMKILL ONYX"), 5662);
+    widget.Switch(OBFUSCATE("AIMKILL 360"), 5662);
+    widget.Switch(OBFUSCATE("AIMKILL SEND V2"), 5663);
     widget.Switch(OBFUSCATE("COVER ELIMINATION"), 107);
     widget.Switch(OBFUSCATE("COVER PULL"), 509);
     widget.Switch(OBFUSCATE("AUTO SWITCH NORMAL"), 508);
@@ -173,6 +175,10 @@ Java_com_terminalx999_Menu_ChangesID(JNIEnv *env, jclass clazz, jint id, jint va
         case 5662:
             pAimbotPlayer.RealAimkillV2 = (value == 1);
             SendFeatuere(5662, pAimbotPlayer.RealAimkillV2);
+            break;
+        case 5663:
+            pAimbotPlayer.Aimkillsend = (value == 1);
+            SendFeatuere(5663, pAimbotPlayer.Aimkillsend);
             break;
         case 507:
             pMemoryTools.speedrun = (value != 0);
