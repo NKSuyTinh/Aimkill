@@ -3351,7 +3351,7 @@ static void AddTeammateHud(void *ui, monoString *nick, monoString *grup) {
 }
 
 void RxmGetNickName(void* targetVivo) {
-    if (!MasterBool.enableESP || !MasterBool.nickfuck) return;
+    if (!MasterBool.enableESP) return;
     void *LocalPlayer = Current_Local_Player();
     if (LocalPlayer != nullptr) {
         void* targetEnemy = targetVivo;
