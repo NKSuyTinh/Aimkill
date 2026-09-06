@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <map>
 #include <chrono>
+#include <cstdlib>
 #include <algorithm>
 #include <cmath>
 #include <sys/mman.h>
@@ -145,6 +146,7 @@ struct {
 
     bool fucked = false;
 
+    bool SafeAimkill = false;
     bool SafeSilentAim = false;
 
     bool autoSwitchEnabled = false;
@@ -926,11 +928,16 @@ void *CreateServer(void *) {
                         MasterBool.Aimkillsend = request.boolean;
                         response.Success = true;
 
+                    }   else if (request.Mode == 5664) {
+                        MasterBool.SafeAimkill = request.boolean;
+                        response.Success = true;
+
                     }   else if (request.Mode == 9999) {
                         MasterBool.ActivateAll = request.boolean;
                         if (!MasterBool.ActivateAll) {
                             MasterBool.RealAimkillV2 = false;
                             MasterBool.Aimkillsend = false;
+                            MasterBool.SafeAimkill = false;
                             MasterBool.Aimkill = false;
                             MasterBool.RealAimkill = false;
                             MasterBool.TargetAll = false;
@@ -1702,12 +1709,107 @@ static inline bool ResolveWeaponFireFn() {
     return original_WeaponFire != nullptr;
 }
 
+static const int kSafeMaxPacketsPerEnemy = 15;
+static const int kSafeBurstPacketMax = 8;
+static const long long kSafeMinPacketGapMs = 20;    // 0.02s — much faster burst
+static const long long kSafeMaxPacketGapMs = 80;    // 0.08s — tighter gap
+static const long long kSafeBurstResetMs = 2000;
+
+struct SafeAimkillTracker {
+    void* trackedEnemy = nullptr;
+    int packetsToEnemy = 0;
+    int burstPackets = 0;
+    long long nextRequiredGapMs = 200;
+    std::chrono::steady_clock::time_point lastPacketAt{};
+    std::chrono::steady_clock::time_point burstWindowStart{};
+};
+
+static SafeAimkillTracker g_safeAimkill;
+
+static long long SafeAimkillNextGapMs() {
+    static bool seeded = false;
+    if (!seeded) {
+        srand((unsigned int)(get_realtimeSinceStartup() * 1000.0f));
+        seeded = true;
+    }
+    long long span = kSafeMaxPacketGapMs - kSafeMinPacketGapMs;
+    if (span < 0) span = 0;
+    return kSafeMinPacketGapMs + (rand() % (int)(span + 1));
+}
+
+static void SafeAimkillResetBurstWindow(std::chrono::steady_clock::time_point now) {
+    g_safeAimkill.burstPackets = 0;
+    g_safeAimkill.burstWindowStart = now;
+}
+
+static bool SafeAimkillCanSendPacket(void* enemy) {
+    if (!enemy) {
+        return false;
+    }
+
+    auto now = std::chrono::steady_clock::now();
+
+    if (g_safeAimkill.trackedEnemy != enemy) {
+        g_safeAimkill.trackedEnemy = enemy;
+        g_safeAimkill.packetsToEnemy = 0;
+    }
+
+    if (IsDieing(enemy) || GetHp(enemy) <= 0) {
+        g_safeAimkill.trackedEnemy = nullptr;
+        g_safeAimkill.packetsToEnemy = 0;
+        return false;
+    }
+
+    if (g_safeAimkill.packetsToEnemy >= kSafeMaxPacketsPerEnemy) {
+        return false;
+    }
+
+    if (g_safeAimkill.burstWindowStart.time_since_epoch().count() == 0) {
+        SafeAimkillResetBurstWindow(now);
+    } else {
+        long long burstAge = std::chrono::duration_cast<std::chrono::milliseconds>(
+                now - g_safeAimkill.burstWindowStart).count();
+        if (burstAge >= kSafeBurstResetMs) {
+            SafeAimkillResetBurstWindow(now);
+        }
+    }
+
+    if (g_safeAimkill.burstPackets >= kSafeBurstPacketMax) {
+        return false;
+    }
+
+    if (g_safeAimkill.lastPacketAt.time_since_epoch().count() != 0) {
+        long long elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                now - g_safeAimkill.lastPacketAt).count();
+        if (elapsed < g_safeAimkill.nextRequiredGapMs) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+static void SafeAimkillRecordPacketSent() {
+    auto now = std::chrono::steady_clock::now();
+    if (g_safeAimkill.burstWindowStart.time_since_epoch().count() == 0) {
+        SafeAimkillResetBurstWindow(now);
+    }
+    g_safeAimkill.packetsToEnemy++;
+    g_safeAimkill.burstPackets++;
+    g_safeAimkill.lastPacketAt = now;
+    g_safeAimkill.nextRequiredGapMs = SafeAimkillNextGapMs();
+}
+
 void StartRealAimkill(void* ClosestEnemy) {
     if (!MasterBool.RealAimkill) return;
     if (!ClosestEnemy) return;
     if (IsDieing(ClosestEnemy)) return;
     if (GetHp(ClosestEnemy) <= 0) return;
     if (!InActiveMatch()) return;
+
+    if (MasterBool.SafeAimkill && !SafeAimkillCanSendPacket(ClosestEnemy)) {
+        return;
+    }
     static void* s_lastTarget = nullptr;
     static float s_lastTime = 0;
     float now = get_time();
@@ -1787,6 +1889,9 @@ void StartRealAimkill(void* ClosestEnemy) {
     GKHECDLGAJA(localPlayer, hitObjectInfo);
     if (ClosestEnemy && !IsDieing(ClosestEnemy) && GetHp(ClosestEnemy) > 0) {
         original_WeaponFire(weaponOnHand, hitInfo);
+        if (MasterBool.SafeAimkill) {
+            SafeAimkillRecordPacketSent();
+        }
     }
 
     StopFire(localPlayer, weaponOnHand);
@@ -1855,6 +1960,11 @@ void StartRealAimkillV2(void* ClosestEnemy) {
     }
 
     if (!target) {
+        g_inAimkillV2 = false;
+        return;
+    }
+
+    if (MasterBool.SafeAimkill && !SafeAimkillCanSendPacket(target)) {
         g_inAimkillV2 = false;
         return;
     }
@@ -1934,6 +2044,10 @@ void StartRealAimkillV2(void* ClosestEnemy) {
     }
     if (ResolveWeaponFireFn() && original_WeaponFire) {
         original_WeaponFire(weapon, hitInfo);
+    }
+
+    if (MasterBool.SafeAimkill) {
+        SafeAimkillRecordPacketSent();
     }
 
     if (wasPulled && enemyTf && target) {
@@ -2058,6 +2172,10 @@ void StartAimKillSend(void* ClosestEnemy) {
         if (processedTargets >= 5) break; // Multi-target squad swipe: hit up to 5 targets in 1 tick
         if (!target || target == localPlayer || IsDieing(target) || GetHp(target) <= 0 || IsLocalTeammate(target)) continue;
 
+        if (MasterBool.SafeAimkill && !SafeAimkillCanSendPacket(target)) {
+            continue;
+        }
+
         void* enemyTf = nullptr;
         Vector3 originalPos = {0, 0, 0};
         bool wasPulled = AimkillMethodPull(target, &enemyTf, &originalPos);
@@ -2133,6 +2251,9 @@ void StartAimKillSend(void* ClosestEnemy) {
             }
             if (ResolveWeaponFireFn() && original_WeaponFire) {
                 original_WeaponFire(weaponOnHand, hitInfo);
+            }
+            if (MasterBool.SafeAimkill) {
+                SafeAimkillRecordPacketSent();
             }
         }
 

@@ -128,6 +128,7 @@ Java_com_terminalx999_Menu_Functions(JNIEnv *env, jclass clazz) {
     widget.Switch(OBFUSCATE("ENABLE ALL"), 9999);
     widget.Switch(OBFUSCATE("AIMKILL 360"), 5662);
     widget.Switch(OBFUSCATE("AIMKILL SEND V2"), 5663);
+    widget.Switch(OBFUSCATE("SAFE AIMKILL"), 5664);
     widget.Switch(OBFUSCATE("COVER ELIMINATION"), 107);
     widget.Switch(OBFUSCATE("COVER PULL"), 509);
     widget.Switch(OBFUSCATE("AUTO SWITCH NORMAL"), 508);
@@ -165,6 +166,7 @@ Java_com_terminalx999_Menu_ChangesID(JNIEnv *env, jclass clazz, jint id, jint va
             if (!MasterBool.ActivateAll) {
                 pAimbotPlayer.RealAimkillV2 = false;
                 pAimbotPlayer.Aimkillsend = false;
+                pAimbotPlayer.SafeAimkill = false;
                 pAimbotPlayer.Aimkill = false;
                 pAimbotPlayer.TargetAll = false;
                 pAimbotPlayer.AimkillSendCoverPull = false;
@@ -212,6 +214,10 @@ Java_com_terminalx999_Menu_ChangesID(JNIEnv *env, jclass clazz, jint id, jint va
         case 5663:
             pAimbotPlayer.Aimkillsend = (value == 1);
             SendFeatuere(5663, pAimbotPlayer.Aimkillsend);
+            break;
+        case 5664:
+            pAimbotPlayer.SafeAimkill = (value == 1);
+            SendFeatuere(5664, pAimbotPlayer.SafeAimkill);
             break;
         case 507:
             pMemoryTools.speedrun = (value != 0);
