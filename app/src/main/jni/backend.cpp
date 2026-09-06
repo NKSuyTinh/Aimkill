@@ -1769,6 +1769,14 @@ void StartRealAimkillV2(void* ClosestEnemy) {
     if (g_inAimkillV2) return;
     g_inAimkillV2 = true;
 
+    // Shot cooldown / delay calibration (1.5x reduction in firing rate: eliminates lag, smooth 0-lag shots)
+    static float s_last360FireTime = 0.0f;
+    float now = get_time();
+    if (now - s_last360FireTime < 0.10f) {
+        g_inAimkillV2 = false;
+        return;
+    }
+
     void* local = Current_Local_Player();
     if (!local || IsDieing(local) || GetHp(local) <= 0) {
         g_inAimkillV2 = false;
@@ -1784,52 +1792,30 @@ void StartRealAimkillV2(void* ClosestEnemy) {
     void* attrs = *(void**)((uintptr_t)local + _playerAttributes);
     if (attrs) *(bool*)((uintptr_t)attrs + offset_NoReload) = true;
 
-    void* current_match = Current_Match();
-    if (!current_match) {
-        g_inAimkillV2 = false;
-        return;
-    }
-
-    auto players = GetEntities(current_match);
-    if (players.empty()) {
-        g_inAimkillV2 = false;
-        return;
-    }
-
-    Vector3 localHead = GetHeadPosition(local);
-
-    std::vector<void*> targets;
+    void* target = nullptr;
     if (ClosestEnemy && !IsDieing(ClosestEnemy) && GetHp(ClosestEnemy) > 0 && !IsLocalTeammate(ClosestEnemy)) {
-        targets.push_back(ClosestEnemy);
-    }
-
-    std::vector<std::pair<float, void*>> candidates;
-    for (void* enemy : players) {
-        if (!enemy || enemy == local || enemy == ClosestEnemy) continue;
-        if (IsDieing(enemy) || GetHp(enemy) <= 0 || IsLocalTeammate(enemy)) continue;
-        if (!isEnemyInRangeWeapon(local, enemy, weapon)) continue;
-
-        void* headCollider = get_HeadCollider(enemy);
-        if (!headCollider) continue;
-
-        Vector3 ePos = GetHeadPosition(enemy);
-        float dx = ePos.X - localHead.X;
-        float dy = ePos.Y - localHead.Y;
-        float dz = ePos.Z - localHead.Z;
-        candidates.push_back({dx * dx + dy * dy + dz * dz, enemy});
-    }
-
-    if (!candidates.empty()) {
-        std::sort(candidates.begin(), candidates.end(),
-                  [](const std::pair<float, void*>& a, const std::pair<float, void*>& b) {
-                      return a.first < b.first;
-                  });
-        for (auto& c : candidates) {
-            targets.push_back(c.second);
+        target = ClosestEnemy;
+    } else if (MasterBool.TargetAll) {
+        void* current_match = Current_Match();
+        if (current_match) {
+            auto players = GetEntities(current_match);
+            Vector3 localHead = GetHeadPosition(local);
+            float bestDistSq = 999999.0f;
+            for (void* p : players) {
+                if (!p || p == local || IsDieing(p) || GetHp(p) <= 0 || IsLocalTeammate(p)) continue;
+                if (!isEnemyInRangeWeapon(local, p, weapon)) continue;
+                Vector3 ePos = GetHeadPosition(p);
+                float dx = ePos.X - localHead.X, dy = ePos.Y - localHead.Y, dz = ePos.Z - localHead.Z;
+                float dSq = dx * dx + dy * dy + dz * dz;
+                if (dSq < bestDistSq) {
+                    bestDistSq = dSq;
+                    target = p;
+                }
+            }
         }
     }
 
-    if (targets.empty()) {
+    if (!target) {
         g_inAimkillV2 = false;
         return;
     }
@@ -1842,89 +1828,81 @@ void StartRealAimkillV2(void* ClosestEnemy) {
 
     COW_GamePlay_MADMMIICBNN_o* hitInfo = (COW_GamePlay_MADMMIICBNN_o*)hitObjectInfo;
 
-    int dispatched = 0;
-    for (void* enemy : targets) {
-        if (dispatched >= 3) break;
-        if (!enemy || enemy == local || IsDieing(enemy) || GetHp(enemy) <= 0 || IsLocalTeammate(enemy)) continue;
-
-        void* enemyTf = nullptr;
-        Vector3 originalPos = {0, 0, 0};
-        bool wasPulled = false;
-        if (!isVisible_Aimbot(enemy)) {
-            wasPulled = AimkillMethodPull(enemy, &enemyTf, &originalPos);
-            if (!wasPulled) continue;
-        }
-
-        void* headCollider = get_HeadCollider(enemy);
-        if (!headCollider) {
-            if (wasPulled && enemyTf && enemy) AimkillMethodRestore(enemy, enemyTf, originalPos);
-            continue;
-        }
-
-        void* headGO = get_gameObject(headCollider);
-        if (!headGO) {
-            if (wasPulled && enemyTf && enemy) AimkillMethodRestore(enemy, enemyTf, originalPos);
-            continue;
-        }
-
-        Vector3 curFirePos = GetHeadPosition(local);
-        Vector3 hitPos = GetHeadPosition(enemy);
-        float dx = hitPos.X - curFirePos.X;
-        float dy = hitPos.Y - curFirePos.Y;
-        float dz = hitPos.Z - curFirePos.Z;
-        float dist = sqrtf(dx * dx + dy * dy + dz * dz);
-        Vector3 direction = {0, 0, 0};
-        if (dist > 0.0001f) {
-            float inv = 1.0f / dist;
-            direction.X = dx * inv;
-            direction.Y = dy * inv;
-            direction.Z = dz * inv;
-        }
-
-        int baseDmg = GetDamage(weapon);
-        if (baseDmg <= 0) baseDmg = 50;
-        if (baseDmg > 200) baseDmg = 200;
-
-        *(void**)((uintptr_t)hitInfo + Hit_GameObject)   = headGO;
-        *(void**)((uintptr_t)hitInfo + Hit_HeadCollider) = headCollider;
-        *(Vector3*)((uintptr_t)hitInfo + Hit_HitLoc)     = hitPos;
-        *(Vector3*)((uintptr_t)hitInfo + Hit_Normal)     = direction;
-        *(Vector3*)((uintptr_t)hitInfo + Hit_RayDir)     = direction;
-        *(Vector3*)((uintptr_t)hitInfo + Hit_StartPos)   = curFirePos;
-        *(Vector3*)((uintptr_t)hitInfo + Hit_OrgStrtPos) = curFirePos;
-        *(int*)((uintptr_t)hitInfo + Hit_Part)           = 1;
-        *(bool*)((uintptr_t)hitInfo + Hit_Ignore)        = false;
-        hitInfo->FFDIOGPKCKF = dist;
-        hitInfo->IHNCAADOAAE = baseDmg;
-
+    void* enemyTf = nullptr;
+    Vector3 originalPos = {0, 0, 0};
+    bool wasPulled = false;
+    if (!isVisible_Aimbot(target)) {
+        wasPulled = AimkillMethodPull(target, &enemyTf, &originalPos);
         if (!wasPulled) {
-            GKHECDLGAJA(local, hitObjectInfo);
+            g_inAimkillV2 = false;
+            return;
         }
+    }
 
-        if (!IsFiringPlayer(local)) {
-            StartFiring(local, weapon);
-        }
+    void* headCollider = get_HeadCollider(target);
+    if (!headCollider) {
+        if (wasPulled && enemyTf && target) AimkillMethodRestore(target, enemyTf, originalPos);
+        g_inAimkillV2 = false;
+        return;
+    }
 
+    void* headGO = get_gameObject(headCollider);
+    if (!headGO) {
+        if (wasPulled && enemyTf && target) AimkillMethodRestore(target, enemyTf, originalPos);
+        g_inAimkillV2 = false;
+        return;
+    }
+
+    Vector3 curFirePos = GetHeadPosition(local);
+    Vector3 hitPos = GetHeadPosition(target);
+    float dx = hitPos.X - curFirePos.X;
+    float dy = hitPos.Y - curFirePos.Y;
+    float dz = hitPos.Z - curFirePos.Z;
+    float dist = sqrtf(dx * dx + dy * dy + dz * dz);
+    Vector3 direction = {0, 0, 0};
+    if (dist > 0.0001f) {
+        float inv = 1.0f / dist;
+        direction.X = dx * inv;
+        direction.Y = dy * inv;
+        direction.Z = dz * inv;
+    } else {
+        direction.Z = 1.0f;
+        dist = 1.0f;
+    }
+
+    if (wasPulled) {
+        dist = 1.5f;
+    }
+
+    int baseDmg = GetDamage(weapon);
+    if (baseDmg <= 0) baseDmg = 50;
+    if (baseDmg > 200) baseDmg = 200;
+
+    FillHitInfoDirectly(hitInfo, headCollider, hitPos, curFirePos, direction, dist, baseDmg);
+
+    if (!wasPulled) {
         GKHECDLGAJA(local, hitObjectInfo);
-
-        if (NoBUlletTractOriginal) {
-            NoBUlletTractOriginal(weapon, hitInfo);
-        }
-        if (ResolveWeaponFireFn() && original_WeaponFire) {
-            original_WeaponFire(weapon, hitInfo);
-        }
-
-        if (wasPulled && enemyTf && enemy) {
-            AimkillMethodRestore(enemy, enemyTf, originalPos);
-        }
-
-        dispatched++;
     }
 
-    if (dispatched > 0) {
-        StopFire(local, weapon);
+    if (!IsFiringPlayer(local)) {
+        StartFiring(local, weapon);
     }
 
+    GKHECDLGAJA(local, hitObjectInfo);
+
+    if (NoBUlletTractOriginal) {
+        NoBUlletTractOriginal(weapon, hitInfo);
+    }
+    if (ResolveWeaponFireFn() && original_WeaponFire) {
+        original_WeaponFire(weapon, hitInfo);
+    }
+
+    if (wasPulled && enemyTf && target) {
+        AimkillMethodRestore(target, enemyTf, originalPos);
+    }
+
+    StopFire(local, weapon);
+    s_last360FireTime = now;
     g_inAimkillV2 = false;
 }
 
@@ -1961,6 +1939,15 @@ void StartAimKillSend(void* ClosestEnemy) {
 
     if (g_inAimkillSend) return;
     g_inAimkillSend = true;
+
+    // Smooth burst cooldown to ensure 0 lag when performing squad swipe
+    static float s_lastAimkillSendTime = 0.0f;
+    float now = get_time();
+    if (now - s_lastAimkillSendTime < 0.12f) {
+        g_inAimkillSend = false;
+        return;
+    }
+    s_lastAimkillSendTime = now;
 
     void *localPlayer = Current_Local_Player();
     if (!localPlayer || IsDieing(localPlayer)) { g_inAimkillSend = false; return; }
@@ -3030,14 +3017,18 @@ auto elapsed_time_exploit = std::chrono::duration_cast<std::chrono::milliseconds
             last_update_time_exploit = current_time;
         }
 
-        if (elapsed_time > 35) {
+        if (elapsed_time > 55) {
             if (MasterBool.fastfireauto) {
                 MasterBool.fastfiremax = MasterBool.autoswitch;
             }
 
             FastFireMaxTimer();
 
-            cachedTarget360 = BestEnemyFind360();
+            if (MasterBool.RealAimkillV2 || MasterBool.RealAimkill || MasterBool.Aimkillsend) {
+                cachedTarget360 = BestEnemyFind360();
+            } else {
+                cachedTarget360 = nullptr;
+            }
 
             void *current_match = nullptr;
             void* StaticGameFacade = *(void**)((uint64_t)_GameFacade + _StaticClass);
@@ -3100,15 +3091,14 @@ auto elapsed_time_exploit = std::chrono::duration_cast<std::chrono::milliseconds
 
                         if (MasterBool.Aimkillsend || MasterBool.AimkillBrutal || MasterBool.AimkillBody) {
                             StartAimKillSend(ClosestEnemy360);
-                        } else if (ClosestEnemy360 != nullptr) {
+                        }
+                        if (MasterBool.RealAimkillV2 && ClosestEnemy360 != nullptr) {
                             if (isEnemyInRangeWeapon(LocalPlayer, ClosestEnemy360, weaponOnHand)) {
-                                if (MasterBool.RealAimkillV2) {
-                                    StartRealAimkillV2(ClosestEnemy360);
-
-                                } else if (MasterBool.RealAimkill) {
-                                    StartRealAimkill(ClosestEnemy360);
-
-                                }
+                                StartRealAimkillV2(ClosestEnemy360);
+                            }
+                        } else if (MasterBool.RealAimkill && ClosestEnemy360 != nullptr) {
+                            if (isEnemyInRangeWeapon(LocalPlayer, ClosestEnemy360, weaponOnHand)) {
+                                StartRealAimkill(ClosestEnemy360);
                             }
                         }
 
