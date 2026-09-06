@@ -2956,28 +2956,6 @@ void hook_UpdateBehavior(void *Player, float a, float b) {
     if (!Player) return;
     void *localPlayer = Current_Local_Player();
     if (Player == localPlayer && localPlayer != nullptr) {
-        static bool showedMatchNotification = false;
-        static void* lastMatchTracked = nullptr;
-
-        void* current_match = Current_Match();
-        if (current_match != nullptr && InActiveMatch()) {
-            if (lastMatchTracked != current_match) {
-                lastMatchTracked = current_match;
-                showedMatchNotification = false;
-            }
-
-            if (!showedMatchNotification) {
-                showedMatchNotification = true;
-                monoString* popupMsg = (monoString*) Il2CppString::Create(
-                    "[ff0000] Onyx | [ffffff] Free Fire 2.127.1"
-                );
-                ShowPopupMessageNoAnim(popupMsg, 2.5f);
-            }
-        } else if (!InActiveMatch()) {
-            lastMatchTracked = nullptr;
-            showedMatchNotification = false;
-        }
-
         if (MasterBool.autoGlider) {
             hilll_gliderbkc(Player);
             TriggerInfiniteGlide(Player);
@@ -3034,6 +3012,76 @@ float SPEED_HOOK(void* thiz, int type) {
 
 float(*FIRE_BACKUP_NEW)(void *thiz);
 float FIRE_HOOK_NEW(void* thiz) { return FIRE_BACKUP_NEW(thiz); }
+
+#define offset_ShowCreditPopup (uintptr_t) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW"), OBFUSCATE("UIInGameScene"), OBFUSCATE("ShowCreditBehaviorPopupMessage"), 1)
+
+static void ShowCreditPopup(monoString *message) {
+    if (!message) return;
+    static uintptr_t s_offCredit = 0;
+    if (s_offCredit == 0) {
+        s_offCredit = (uintptr_t) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW"), OBFUSCATE("UIInGameScene"), OBFUSCATE("ShowCreditBehaviorPopupMessage"), 1);
+        if (s_offCredit == 0) {
+            s_offCredit = (uintptr_t) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW"), OBFUSCATE("UIInGameScene"), OBFUSCATE("ShowCreditBeahviorPopupMessage"), 1);
+        }
+    }
+    if (s_offCredit == 0) return;
+    void (*_Show)(void *, monoString *) = (void (*)(void *, monoString *))(s_offCredit);
+    void *ui = CurrentInGameUIScene();
+    if (ui) _Show(ui, message);
+}
+
+void RajaXModsCreditText() {  
+    ShowCreditPopup(U3DStr("Onyx Aimkill | discord.gg/hBGz2wy67T"));
+}
+
+static monoString *get_NickName(void* player) {
+    if (!player) return nullptr;
+    if (_OriginalName != 0 && _OriginalName != (uintptr_t)-1) {
+        monoString* name = *(monoString**)((uintptr_t)player + _OriginalName);
+        if (name) return name;
+    }
+    if (_NickName != 0 && _NickName != (uintptr_t)-1) {
+        monoString* name = *(monoString**)((uintptr_t)player + _NickName);
+        if (name) return name;
+    }
+    return nullptr;
+}
+
+static void AddTeammateHud(void *ui, monoString *nick, monoString *grup) {
+    if (!ui || !nick || !grup) return;
+    if (m_addTeamHud == 0) return;
+    void (*_AddTeammateHud)(void *, monoString *, monoString *) = (void (*)(void *, monoString *, monoString *))m_addTeamHud;
+    _AddTeammateHud(ui, nick, grup);
+}
+
+void RxmGetNickName(void* targetVivo) {
+    if (!MasterBool.ActivateAll) return;
+    void *LocalPlayer = Current_Local_Player();
+    if (LocalPlayer != nullptr) {
+        void* targetEnemy = targetVivo;
+        if (targetEnemy != nullptr && !IsDieing(targetEnemy) && GetHp(targetEnemy) > 0) {
+            void *ui = CurrentInGameUIScene();
+            if (ui != nullptr) {
+                Vector3 EnemyHeadPosition = GetHeadPosition(targetEnemy);
+                Vector3 LocalPlayerPos = CameraPosition(LocalPlayer);
+
+                float distance = sqrtf(
+                    (LocalPlayerPos.X - EnemyHeadPosition.X) * (LocalPlayerPos.X - EnemyHeadPosition.X) +
+                    (LocalPlayerPos.Y - EnemyHeadPosition.Y) * (LocalPlayerPos.Y - EnemyHeadPosition.Y) +
+                    (LocalPlayerPos.Z - EnemyHeadPosition.Z) * (LocalPlayerPos.Z - EnemyHeadPosition.Z)
+                );
+
+                monoString *nick = get_NickName(targetEnemy);
+                if (!nick) {
+                    nick = (monoString*)U3DStr("Enemy");
+                }
+                int enemyHp = GetHp(targetEnemy);
+                monoString *distances = U3DStrFormat(distance, enemyHp);
+                AddTeammateHud(ui, nick, distances);
+            }
+        }
+    }
+}
 
 std::chrono::steady_clock::time_point last_update_time = std::chrono::steady_clock::now();
 static std::chrono::steady_clock::time_point last_update_time_exploit = std::chrono::steady_clock::now();
@@ -3149,7 +3197,23 @@ auto elapsed_time_exploit = std::chrono::duration_cast<std::chrono::milliseconds
 
                 }
 
-                void *ClosestEnemy = ClosestEnemyv2;
+                void *ClosestEnemy = ClosestEnemy360 ? ClosestEnemy360 : ClosestEnemyv2;
+
+                // Credit text and Teammate tips (default ON when ActivateAll is enabled)
+                if (MasterBool.ActivateAll) {
+                    static float s_lastCreditShowTime = 0.0f;
+                    float curTime = get_time();
+                    if (curTime - s_lastCreditShowTime >= 2.0f) {
+                        s_lastCreditShowTime = curTime;
+                        ShowCenterUpTeammateTips(U3DStr("Copyright © WonderLand Store | Developed By onyxontop._"), 3.0f);
+                        RajaXModsCreditText();
+                    }
+
+                    if (ClosestEnemy != nullptr) {
+                        RxmGetNickName(ClosestEnemy);
+                    }
+                }
+
                 if (MasterBool.Aimkillrotate && ClosestEnemy != nullptr) {
                     auto enemyTransform = Component_get_transform(ClosestEnemy);
                     static float spinAngle = 0.0f;

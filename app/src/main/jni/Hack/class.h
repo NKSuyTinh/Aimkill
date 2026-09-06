@@ -729,9 +729,15 @@ static void ShowAssistantText(void* uiInstance, monoString* playerName, monoStri
     }
 }
 
+static monoString *U3DStrFormat(float distance, int hp) {
+    char buffer[128] = {0};
+    sprintf(buffer, " Onyx Aimkill | HP: %d | Distance: %.0f M", hp, distance);
+    return U3DStr(buffer);
+}
+
 static monoString *U3DStrFormat(float distance, float vida) {
     char buffer[128] = {0};
-    sprintf(buffer, "[PHX CORP] distance: %.2fm", distance);
+    sprintf(buffer, " Onyx Aimkill | HP: %d | Distance: %.0f M", (int)vida, distance);
     return U3DStr(buffer);
 }
 
