@@ -90,7 +90,6 @@ void log_enemy_info(const char* prefix, void* enemy) {
 #pragma once
 
 struct {
-    bool ActivateAll = false;
     bool autoswitch = false;
     bool autoswitchsafe = false;
 
@@ -511,41 +510,42 @@ void SetFootballState(void* player) {
 
 static const uintptr_t pAddress_new = 0xC4C;
 static const uintptr_t pAddress_Firing = 0x540;
-static const uintptr_t pAddress_IsUseFootball = 0x64ADAB8;
-static const uintptr_t pAddress_TakeDamage = 0x6682648;
 
 void FootBallNew() {
+    static bool s_wasInvis = false;
+    if (!MasterBool.Invisible) {
+        if (s_wasInvis) {
+            void* LOCP = Current_Local_Player(); 
+            if (LOCP != nullptr) {
+                *(uint32_t*)((uintptr_t)LOCP + pAddress_new) = 3; 
+            }
+            s_wasInvis = false;
+        }
+        return;
+    }
+    s_wasInvis = true;
     void* LOCP = Current_Local_Player(); 
     if (LOCP == nullptr) return; 
 
     uint32_t* fbStatePtr = (uint32_t*)((uintptr_t)LOCP + pAddress_new); 
-    bool isFiring = IsFiringPlayer(LOCP) || *(bool*)((uintptr_t)LOCP + pAddress_Firing);
-
-    if (MasterBool.ActivateAll && MasterBool.Invisible) {
-        if (isFiring) {
-            *fbStatePtr = 3; 
-        } else {
-            *fbStatePtr = 1; 
-            static void (*FootBallWala)(void*) = nullptr;
-            if (!FootBallWala) {
-                static uintptr_t off_fb = (uintptr_t)Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player"), OBFUSCATE("IsUseFootball"), 0);
-                if (!off_fb) {
-                    off_fb = getRealOffset(pAddress_IsUseFootball);
-                }
-                FootBallWala = (void (*)(void*))off_fb;
-            }
-            if (FootBallWala) {
-                FootBallWala(LOCP); 
-            }
-        }
-    } else {
+    bool isFiring = IsFiringPlayer(LOCP);
+    if (isFiring) {
         *fbStatePtr = 3; 
+    } else {
+        *fbStatePtr = 1; 
+        static void (*FootBallWala)(void*) = nullptr;
+        if (!FootBallWala) {
+            FootBallWala = (void (*)(void*))Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player"), OBFUSCATE("IsUseFootball"), 0);
+        }
+        if (FootBallWala) {
+            FootBallWala(LOCP); 
+        }
     }
 }
 
 bool (*orig_CanTakeDamage)(void* _this, void* attacker, void* victim, void* weaponData, const void* method) = nullptr;
 bool hook_CanTakeDamage(void* _this, void* attacker, void* victim, void* weaponData, const void* method) {
-    if (MasterBool.ActivateAll && MasterBool.Invisible) {
+    if (MasterBool.Invisible) {
         void* localPlayer = Current_Local_Player();
         if (victim != nullptr && victim == localPlayer) {
             return false; 
@@ -725,7 +725,7 @@ void NewEspForUnity31(Response &response) {
 void FlyExploitSBG(void* localPlayer)
 {
     if (!localPlayer) return;
-    if (!(MasterBool.flyexploit && (MasterBool.enableESP || MasterBool.ActivateAll))) return;
+    if (!MasterBool.flyexploit) return;
 
     void *transform = Component_get_transform(localPlayer);
     if (!transform) return;
@@ -949,11 +949,7 @@ void *CreateServer(void *) {
                         g_screenWidth = request.ScreenWidth;
                         g_screenHeight = request.ScreenHeight;
                         response.Success = true;
-                        if (MasterBool.ActivateAll) {
-                            NewEspForUnity31(response);
-                        } else {
-                            response.PlayerCount = 0;
-                        }
+                        NewEspForUnity31(response);
 
                     } else if (request.Mode == 3) {
                         MasterBool.enableESP = request.boolean;
@@ -998,49 +994,6 @@ void *CreateServer(void *) {
 
                     }   else if (request.Mode == 5667) {
                         MasterBool.noDelay = request.boolean;
-                        response.Success = true;
-
-                    }   else if (request.Mode == 9999) {
-                        MasterBool.ActivateAll = request.boolean;
-                        if (request.boolean) {
-                            MasterBool.enableESP = true;
-                        } else {
-                            MasterBool.RealAimkillV2 = false;
-                            MasterBool.Aimkillsend = false;
-                            MasterBool.SafeAimkill = false;
-                            MasterBool.downKillMaxVip = false;
-                            MasterBool.flyhack = false;
-                            MasterBool.flyexploit = false;
-                            MasterBool.Invisible = false;
-                            MasterBool.noDelay = false;
-                            MasterBool.Aimkill = false;
-                            MasterBool.RealAimkill = false;
-                            MasterBool.TargetAll = false;
-                            MasterBool.enableESP = false;
-                            MasterBool.autofire = false;
-                            MasterBool.autoSwitchEnabled = false;
-                            MasterBool.autoswitchsafe = false;
-                            MasterBool.autoswitch = false;
-                            MasterBool.speedrun = false;
-                            MasterBool.speedHack = false;
-                            MasterBool.speedhackjoy = false;
-                            MasterBool.autoGlider = false;
-                            MasterBool.autorevive = false;
-                            MasterBool.fastfuck = false;
-                            MasterBool.noreloadfck = false;
-                            MasterBool.fastfiremax = false;
-                            MasterBool.fastfireauto = false;
-                            MasterBool.DiveKill = false;
-                            MasterBool.downplayerV2 = false;
-                            MasterBool.downaimkill = false;
-                            MasterBool.telehack = false;
-                            MasterBool.Aimkillrotate = false;
-                            MasterBool.AimkillSendCoverPull = false;
-                            MasterBool.mapateleport = false;
-                            MasterBool.resetguest = false;
-                            SpeedTimerpatch = false;
-                            noDelayPatch = false;
-                        }
                         response.Success = true;
 
                     }  else if (request.Mode == 1043) {
@@ -2969,6 +2922,8 @@ static inline void*   dkv_match() {
 
 void DownKillMaxVip(void* closestHint = nullptr)
 {
+    if (!MasterBool.downKillMaxVip && !g_dkvLocal.prev && g_dkvEnemies.empty()) return;
+
     void* local = Current_Local_Player(); if (!local) return;
     void* ltf   = Component_get_transform(local); if (!ltf) return;
     const bool on = MasterBool.downKillMaxVip;
@@ -2990,15 +2945,15 @@ void DownKillMaxVip(void* closestHint = nullptr)
 
     // ===== ALL ENEMIES =====
     {
+        void* match = Current_Match();
+        if (!match) return;
+
         for (auto& kv : g_dkvEnemies) kv.second.alive = false;
-        void* match = dkv_match();
-        if (!match) match = Current_Match();
-        std::vector<void*> arr;
-        if (match) {
-            arr = GetEntities(match);
-        } else if (closestHint) {
+        std::vector<void*> arr = GetEntities(match);
+        if (arr.empty() && closestHint) {
             arr.push_back(closestHint);
         }
+
         for (void* e : arr) {
             if (!e || e == local)                         continue;
             if (IsDieing(e) || GetHp(e) <= 0)             continue;
@@ -3019,7 +2974,7 @@ void DownKillMaxVip(void* closestHint = nullptr)
                 Vector3 tgt = Vector3(st.save.X, st.save.Y + kDownVip_EnemyY, st.save.Z);
 
                 float dxz = (P.X-st.save.X)*(P.X-st.save.X) + (P.Z-st.save.Z)*(P.Z-st.save.Z);
-                if (dxz > 0.09f) { // địch chạy > 0.3m → cập nhật X/Z theo realtime (không kẹt kệch)
+                if (dxz > 0.09f) {
                     st.save.X = P.X; st.save.Z = P.Z;
                     st.cur .X = P.X; st.cur .Z = P.Z;
                     tgt.X = P.X;      tgt.Z = P.Z;
@@ -3213,6 +3168,8 @@ void ApplyFlyMap(void* localPlayer) {
 //  - Flag SpeedTimerpatch / noDelayPatch để CHỈ PATCH KHI CẦN THAY ĐỔI  (tránh crash)
 // ======================================================================
 void FastFireMaxTimer() {
+    if (!MasterBool.fastfiremax && !MasterBool.noDelay && !SpeedTimerpatch && !noDelayPatch) return;
+
     if (_GameFacade) {
         void *StaticGameFacade = *(void **) ((uint64_t) _GameFacade + _StaticClass);
         if (StaticGameFacade != nullptr) {
@@ -3222,32 +3179,27 @@ void FastFireMaxTimer() {
                 if (!timeService) return;
 
                 // ===== Priority 1: Fast Fire Max (Rage mode) =====
-                if (MasterBool.ActivateAll && MasterBool.fastfiremax) {
+                if (MasterBool.fastfiremax) {
                     if (!SpeedTimerpatch) {
-                        // Thay m_FixedDeltaTime 0.033 (gốc) → 0.20 (giả lập 6 tick/s → tăng fire rate 6x)
                         *(float *) ((uintptr_t) timeService + _FixedDeltaTime) = 0.20f;
                         SpeedTimerpatch = true;
-                        noDelayPatch    = false; // tắt Speed Timer mode nếu đang bật (tránh conflict)
+                        noDelayPatch    = false;
                     }
                     return;
                 }
 
                 // ===== Priority 2: SPEED TIMER (No Delay) =====
-                // Giá trị 0.065: ~ 15 tick / giây  →  mọi hành vi game (chạy, bắn, hồi máu, reload)
-                // đều chạy nhanh hơn ~ 50% so với gốc (0.033). Khác với Fast Fire Max, không quá
-                // cực đoan → khó detect hơn (giống "máy lag ngược" nhưng bạn vẫn bắn thẳng)
-                if (MasterBool.ActivateAll && MasterBool.noDelay) {
+                if (MasterBool.noDelay) {
                     if (!noDelayPatch) {
                         *(float *) ((uintptr_t) timeService + _FixedDeltaTime) = 0.065f;
                         noDelayPatch     = true;
-                        SpeedTimerpatch  = false; // reset mode kia
+                        SpeedTimerpatch  = false;
                     }
                     return;
                 }
 
                 // ===== Khôi phục mặc định khi tắt cả 2 =====
                 if (SpeedTimerpatch || noDelayPatch) {
-                    // 0.033 = 30 FPS simulation tick (gốc Unity game)
                     *(float *) ((uintptr_t) timeService + _FixedDeltaTime) = 0.033f;
                     SpeedTimerpatch = false;
                     noDelayPatch    = false;
@@ -3290,10 +3242,6 @@ bool hook_IsVisible(void *Player) {
 void (*orig_UpdateBehavior)(void *Player, float a, float b) = nullptr;
 void hook_UpdateBehavior(void *Player, float a, float b) {
     if (orig_UpdateBehavior) orig_UpdateBehavior(Player, a, b);
-    if (!MasterBool.ActivateAll) {
-        FootBallNew();
-        return;
-    }
 
     if (!Player) return;
     void *localPlayer = Current_Local_Player();
@@ -3303,15 +3251,20 @@ void hook_UpdateBehavior(void *Player, float a, float b) {
             TriggerInfiniteGlide(Player);
         }
 
+        if (MasterBool.flyexploit) {
+            FlyExploitSBG(localPlayer);
+        }
+
         DownPlayer::Update();
         DownEnemy::Update();
+        DownKillMaxVip();
         FootBallNew();
     }
 }
 
 bool (*orig_SpeedBypass)(void* instance);
 bool hook_SpeedBypass(void* instance) {
-    if (MasterBool.ActivateAll && MasterBool.speedhackjoy) {
+    if (MasterBool.speedhackjoy) {
         return true;
     }
     return orig_SpeedBypass(instance);
@@ -3319,7 +3272,7 @@ bool hook_SpeedBypass(void* instance) {
 
 bool (*orig_SpeedHack)(void* instance);
 bool hook_SpeedHack(void* instance) {
-    if (MasterBool.ActivateAll && MasterBool.speedhackjoy) {
+    if (MasterBool.speedhackjoy) {
         return true;
     }
     return orig_SpeedHack(instance);
@@ -3330,7 +3283,7 @@ float(*FIRE_BACKUP)(void* thiz);
 float FIRE_HOOK(void* thiz) {
     if (thiz != nullptr )
     {
-        if (MasterBool.ActivateAll && MasterBool.fastfuck){
+        if (MasterBool.fastfuck){
             return 0.1f;
         }
     }
@@ -3340,7 +3293,7 @@ float FIRE_HOOK(void* thiz) {
 float(*SPEED_BACKUP)(void *thiz, int type);
 
 float SPEED_HOOK(void* thiz, int type) {
-    if (thiz != nullptr && MasterBool.ActivateAll) {
+    if (thiz != nullptr ) {
         if (MasterBool.fastfiremax) {
             return 0.35f;
 
@@ -3398,7 +3351,7 @@ static void AddTeammateHud(void *ui, monoString *nick, monoString *grup) {
 }
 
 void RxmGetNickName(void* targetVivo) {
-    if (!MasterBool.ActivateAll) return;
+    if (!MasterBool.enableESP || !MasterBool.nickfuck) return;
     void *LocalPlayer = Current_Local_Player();
     if (LocalPlayer != nullptr) {
         void* targetEnemy = targetVivo;
@@ -3427,31 +3380,14 @@ void RxmGetNickName(void* targetVivo) {
 }
 
 std::chrono::steady_clock::time_point last_update_time = std::chrono::steady_clock::now();
-static std::chrono::steady_clock::time_point last_update_time_exploit = std::chrono::steady_clock::now();
 GCommon_AnimationRuntimeHandle_o *(*GetCurrentRunningHandler)(GCommon_AnimationSystemComponent_o *Instance,int32_t layerIndex);
 
 GCommon_AnimationRuntimeHandle_o *_GetCurrentRunningHandler(GCommon_AnimationSystemComponent_o *Instance,int32_t layerIndex)
 
 {
-    if (!MasterBool.ActivateAll) {
-        DownKillMaxVip();
-        return GetCurrentRunningHandler(Instance, layerIndex);
-    }
     if (Instance != nullptr && layerIndex == 0) {
         std::chrono::steady_clock::time_point current_time = std::chrono::steady_clock::now();
         auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(current_time - last_update_time).count();
-auto elapsed_time_exploit = std::chrono::duration_cast<std::chrono::milliseconds>(current_time - last_update_time_exploit).count();
-        if (elapsed_time_exploit > 17)
-
-        {
-            void *LocalPlayer = Current_Local_Player();
-            if (LocalPlayer != nullptr) {
-                FlyExploitSBG(LocalPlayer);
-            }
-
-            last_update_time_exploit = current_time;
-        }
-
         if (elapsed_time > 55) {
             if (MasterBool.fastfireauto) {
                 MasterBool.fastfiremax = MasterBool.autoswitch;
@@ -3506,7 +3442,6 @@ auto elapsed_time_exploit = std::chrono::duration_cast<std::chrono::milliseconds
             NormalAutoSwitchLoop();
             DownPlayer::Update();
             DownEnemy::Update();
-            DownKillMaxVip(cachedTarget360 ? cachedTarget360 : cachedTarget);
 
             void *LocalPlayer = Current_Local_Player();
             if (LocalPlayer != nullptr) {
@@ -3544,19 +3479,16 @@ auto elapsed_time_exploit = std::chrono::duration_cast<std::chrono::milliseconds
 
                 void *ClosestEnemy = ClosestEnemy360 ? ClosestEnemy360 : ClosestEnemyv2;
 
-                // Credit text and Teammate tips (default ON when ActivateAll is enabled)
-                if (MasterBool.ActivateAll) {
-                    static float s_lastCreditShowTime = 0.0f;
-                    float curTime = get_time();
-                    if (curTime - s_lastCreditShowTime >= 2.0f) {
-                        s_lastCreditShowTime = curTime;
-                        ShowCenterUpTeammateTips(U3DStr("Copyright © WonderLand Store | Developed By onyxontop._"), 3.0f);
-                        RajaXModsCreditText();
-                    }
+                static float s_lastCreditShowTime = 0.0f;
+                float curTime = get_time();
+                if (curTime - s_lastCreditShowTime >= 2.0f) {
+                    s_lastCreditShowTime = curTime;
+                    ShowCenterUpTeammateTips(U3DStr("Copyright © WonderLand Store | Developed By onyxontop._"), 3.0f);
+                    RajaXModsCreditText();
+                }
 
-                    if (ClosestEnemy != nullptr) {
-                        RxmGetNickName(ClosestEnemy);
-                    }
+                if (ClosestEnemy != nullptr) {
+                    RxmGetNickName(ClosestEnemy);
                 }
 
                 if (MasterBool.Aimkillrotate && ClosestEnemy != nullptr) {
@@ -3588,7 +3520,7 @@ bool (*NoBUlletTractOriginal)(void* weapon, COW_GamePlay_MADMMIICBNN_o *hitInfo)
 bool(*MedikitRun)(bool* instance);
 
 bool _MedikitRun(bool* instance)  {
-    return (MasterBool.ActivateAll && MasterBool.medikitrun) ? false : MedikitRun(instance);
+    return (MasterBool.medikitrun) ? false : MedikitRun(instance);
 }
 
 bool(*DoubleGun)(bool* instance);
@@ -3600,7 +3532,7 @@ bool _DoubleGun(bool* instance){
 bool (*ResetGuest)(bool* instance);
 
 bool _ResetGuest(bool* instance) {
-    return (MasterBool.ActivateAll && MasterBool.resetguest) ? true : ResetGuest(instance);
+    return (MasterBool.resetguest) ? true : ResetGuest(instance);
 }
 
 typedef int (*CalcRealDamage_fn)(float, void*, void*, void*, void*, int, void*, void*, float, uint32_t);
@@ -3722,17 +3654,6 @@ void *pthreadcreate(void *arg) {
             // Hooks removed: Gravity, ShowDamageNum, ShowDamage, HighFPS120, HighFPS144
             DobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("message"), OBFUSCATE("KANJBNIANHC"), OBFUSCATE("MBOHNCMOJDE"), 1), (void *)hook_SpeedBypass, (void **) &orig_SpeedBypass);
             DobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player"), OBFUSCATE("IsFoldWingGliding"), 0), (void *)hook_SpeedHack, (void **) &orig_SpeedHack);
-
-            uintptr_t offset_CanTakeDamage = (uintptr_t) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW"), OBFUSCATE("MatchGame"), OBFUSCATE("CanTakeDamage"), 4);
-            if (!offset_CanTakeDamage) {
-                offset_CanTakeDamage = (uintptr_t) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW"), OBFUSCATE("MatchGame"), OBFUSCATE("CanTakeDamage"), 3);
-            }
-            if (!offset_CanTakeDamage) {
-                offset_CanTakeDamage = getRealOffset(pAddress_TakeDamage);
-            }
-            if (offset_CanTakeDamage) {
-                DobbyHook((void *) offset_CanTakeDamage, (void *) hook_CanTakeDamage, (void **) &orig_CanTakeDamage);
-            }
 
             pthread_exit(0);
         }

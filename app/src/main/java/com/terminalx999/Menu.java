@@ -255,7 +255,6 @@ public class Menu {
     private static Map<Integer, SwitchStyle> idToBindSwitch = new HashMap<>();
     private static Map<Integer, String> idToName = new HashMap<>();
     private static List<TextView> allKeybindButtons = new ArrayList<>();
-    public static final int ID_ENABLE_ALL = 9999;
     private static final int ID_TURN_ON_KEYBIND = 6000;
     private static final int ID_CLEAR_KEYBINDS = 6001;
     private static final int ID_SHOW_KEYBIND_STATUS = 6002;
@@ -263,11 +262,6 @@ public class Menu {
     private static volatile boolean keybindEnabled = false;
     private static volatile boolean showKeybindStatus = false;
     private static volatile boolean showMatchTimer = false;
-
-    public static boolean isEnableAllOn() {
-        SwitchStyle s = idToBindSwitch.get(ID_ENABLE_ALL);
-        return s != null && s.isChecked();
-    }
 
     // Auto-toggle tracking
     private static boolean speedTimerAutoOffed = false;
@@ -699,11 +693,6 @@ public class Menu {
                 for (Map.Entry<Integer, Integer> entry : new HashMap<>(idToKeyCode).entrySet()) {
                     if (entry.getValue() != null && entry.getValue() == keyCode) {
                         int id = entry.getKey();
-                        if (id != ID_ENABLE_ALL && !isEnableAllOn()) {
-                            Toast.makeText(context, "Vui lòng bật Enable All trước!", Toast.LENGTH_SHORT).show();
-                            handled = true;
-                            continue;
-                        }
                         SwitchStyle sw = idToBindSwitch.get(id);
                         if (sw != null) {
                             sw.toggle();
@@ -1301,14 +1290,8 @@ public class Menu {
         final TextView textView = new TextView(context);
         textView.setLayoutParams(new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        if (ID == ID_ENABLE_ALL) {
-            textView.setText("★ " + name.toUpperCase() + " ★");
-            textView.setTextColor(0xFFFF3344);
-            cardBg.setStroke(utils.FixDP(1), 0x99FF3344);
-        } else {
-            textView.setText(name.toUpperCase());
-            textView.setTextColor(PrimaryColor);
-        }
+        textView.setText(name.toUpperCase());
+        textView.setTextColor(PrimaryColor);
         textView.setTextSize(11);
         textView.setTypeface(Typeface.create("sans-serif-bold", Typeface.BOLD));
 
@@ -1364,10 +1347,10 @@ public class Menu {
         });
 
         keybindTv.setVisibility(
-                keybindEnabled && ID != ID_TURN_ON_KEYBIND && ID != ID_SHOW_KEYBIND_STATUS && ID != ID_SHOW_MATCH_TIMER && ID != ID_ENABLE_ALL
+                keybindEnabled && ID != ID_TURN_ON_KEYBIND && ID != ID_SHOW_KEYBIND_STATUS && ID != ID_SHOW_MATCH_TIMER
                         ? View.VISIBLE
                         : View.GONE);
-        if (ID != ID_TURN_ON_KEYBIND && ID != ID_SHOW_KEYBIND_STATUS && ID != ID_SHOW_MATCH_TIMER && ID != ID_ENABLE_ALL) {
+        if (ID != ID_TURN_ON_KEYBIND && ID != ID_SHOW_KEYBIND_STATUS && ID != ID_SHOW_MATCH_TIMER) {
             allKeybindButtons.add(keybindTv);
         }
 
@@ -1399,35 +1382,7 @@ public class Menu {
         switchStyle.setOnCheckedChangeListener(new SwitchStyle.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(final SwitchStyle view, boolean isChecked) {
-                if (ID != ID_ENABLE_ALL && isChecked && !isEnableAllOn()) {
-                    Toast.makeText(context, "Vui lòng bật Enable All trước!", Toast.LENGTH_SHORT).show();
-                    view.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            view.setChecked(false);
-                        }
-                    });
-                    return;
-                }
-
                 customCheckbox.setChecked(isChecked);
-
-                if (ID == ID_ENABLE_ALL) {
-                    if (!isChecked) {
-                        for (Map.Entry<Integer, SwitchStyle> entry : new HashMap<>(idToBindSwitch).entrySet()) {
-                            int otherId = entry.getKey();
-                            if (otherId != ID_ENABLE_ALL && otherId != ID_SHOW_KEYBIND_STATUS && otherId != ID_SHOW_MATCH_TIMER && otherId != ID_CLEAR_KEYBINDS) {
-                                SwitchStyle otherSwitch = entry.getValue();
-                                if (otherSwitch != null && otherSwitch.isChecked()) {
-                                    otherSwitch.setChecked(false);
-                                }
-                            }
-                        }
-                        Toast.makeText(context, "Đã tắt tất cả chức năng", Toast.LENGTH_SHORT).show();
-                    } else {
-                        Toast.makeText(context, "Enable All: Đã mở khoá chức năng", Toast.LENGTH_SHORT).show();
-                    }
-                }
 
                 if (ID == ID_CLEAR_KEYBINDS && isChecked) {
                     clearAllKeybinds();
@@ -1673,10 +1628,6 @@ public class Menu {
         View.OnClickListener toggleOnClick = new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                if (ID != ID_ENABLE_ALL && !isEnableAllOn()) {
-                    Toast.makeText(context, "Vui lòng bật Enable All trước!", Toast.LENGTH_SHORT).show();
-                    return;
-                }
                 switchStyle.toggle();
             }
         };
@@ -1686,7 +1637,7 @@ public class Menu {
 
         card.addView(linearLayout);
 
-        if (ID != ID_TURN_ON_KEYBIND && ID != ID_SHOW_KEYBIND_STATUS && ID != ID_SHOW_MATCH_TIMER && ID != ID_ENABLE_ALL) {
+        if (ID != ID_TURN_ON_KEYBIND && ID != ID_SHOW_KEYBIND_STATUS && ID != ID_SHOW_MATCH_TIMER) {
             card.addView(keybindTv);
         }
 
@@ -1808,15 +1759,8 @@ public class Menu {
 
     private static void loadConfig(Context context) {
         android.content.SharedPreferences prefs = context.getSharedPreferences("NX999_Config", Context.MODE_PRIVATE);
-        boolean enableAllSaved = prefs.getBoolean(String.valueOf(ID_ENABLE_ALL), false);
-        SwitchStyle masterSw = idToBindSwitch.get(ID_ENABLE_ALL);
-        if (masterSw != null && masterSw.isChecked() != enableAllSaved) {
-            masterSw.setChecked(enableAllSaved);
-        }
-
         for (Map.Entry<Integer, SwitchStyle> entry : idToBindSwitch.entrySet()) {
             int ID = entry.getKey();
-            if (ID == ID_ENABLE_ALL) continue;
             // Skip SETTING tab or keybind related IDs if needed, but usually it's fine
             if (ID >= 6000 && ID <= 7001) continue;
 
