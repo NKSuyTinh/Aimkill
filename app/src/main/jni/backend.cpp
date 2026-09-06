@@ -147,10 +147,9 @@ struct {
 
     bool SafeAimkill = false;
     bool SafeSilentAim = false;
-    bool downKillMaxVip = false;
+    bool enableFunctions = false;
     bool flyhack = false;
     bool flyexploit = false;
-    bool Invisible = false;
     bool noDelay = false;
 
     bool autoSwitchEnabled = false;
@@ -508,18 +507,10 @@ void SetFootballState(void* player) {
     *(int *)((uintptr_t)physXData + 0xc) = 8;
 }
 
-void FootBallNew() {
-    // Handled safely in hook_IsVisible to prevent memory corruption
-}
+void FootBallNew() {}
 
 bool (*orig_CanTakeDamage)(void* _this, void* attacker, void* victim, void* weaponData, const void* method) = nullptr;
 bool hook_CanTakeDamage(void* _this, void* attacker, void* victim, void* weaponData, const void* method) {
-    if (MasterBool.Invisible) {
-        void* localPlayer = Current_Local_Player();
-        if (victim != nullptr && victim == localPlayer) {
-            return false; 
-        }
-    }
     if (orig_CanTakeDamage) {
         return orig_CanTakeDamage(_this, attacker, victim, weaponData, method);
     }
@@ -694,14 +685,20 @@ void NewEspForUnity31(Response &response) {
 void FlyExploitSBG(void* localPlayer)
 {
     if (!localPlayer) return;
-    if (!MasterBool.flyexploit) return;
+    if (!MasterBool.enableFunctions || !MasterBool.flyexploit) return;
     if (!InActiveMatch()) return;
+
+    static auto s_lastFlyTime = std::chrono::steady_clock::now();
+    auto now = std::chrono::steady_clock::now();
+    long long elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - s_lastFlyTime).count();
+    if (elapsedMs < 100) return; // Nhịp 0.1 giây
+    s_lastFlyTime = now;
 
     void *transform = Component_get_transform(localPlayer);
     if (!transform) return;
 
     Vector3 pos = Transform_INTERNAL_GetPosition(transform);
-    pos.Y += 0.1f;
+    pos.Y += 0.3f; // Tự động nâng bản thân lên +0.3 liên tục không ngừng
     Transform_set_position(transform, pos);
 }
 
@@ -954,12 +951,16 @@ void *CreateServer(void *) {
                         MasterBool.SafeAimkill = request.boolean;
                         response.Success = true;
 
+                    }   else if (request.Mode == 9001) {
+                        MasterBool.enableFunctions = request.boolean;
+                        response.Success = true;
+
                     }   else if (request.Mode == 5665) {
                         MasterBool.flyexploit = request.boolean;
                         response.Success = true;
 
                     }   else if (request.Mode == 5666) {
-                        MasterBool.Invisible = request.boolean;
+                        // Invisible removed
                         response.Success = true;
 
                     }   else if (request.Mode == 5667) {
@@ -1003,23 +1004,8 @@ void *CreateServer(void *) {
                         MasterBool.Aimkillrotate = request.boolean;
                         response.Success = true;
 
-                    } else if(request.Mode == 504) {
-                        MasterBool.downKillMaxVip  = request.boolean;
-                        MasterBool.downaimkill     = request.boolean;  // giữ cho code cũ không crash (nếu có gọi site)
-                        if (!request.boolean) {
-                            MasterBool.downplayer = false;
-                            MasterBool.flyhack    = false;
-                        }
-                        response.Success = true;
-
-                    } else if(request.Mode == 5658 || request.Mode == 5660) {
-                        // DOWN KILL / DIVE KILL NEW → thống nhất cùng 1 chế độ MAX VIP
-                        MasterBool.downKillMaxVip  = request.boolean;
-                        if (!request.boolean) {
-                            MasterBool.downplayer  = false;
-                            MasterBool.downaimkill = false;
-                            MasterBool.flyhack     = false;
-                        }
+                    } else if(request.Mode == 504 || request.Mode == 5658 || request.Mode == 5660) {
+                        // Down Kill removed
                         response.Success = true;
 
                     }  else if(request.Mode == 505) {
@@ -1395,59 +1381,7 @@ void RequestExecuteTargetV2(void *thiss, COW_GamePlay_IHAAMHPPLMG_o targetID) {}
 
 void (*RefreshAllParams)(void *player) = (void (*)(void *))offset_EMAOKNCFCKE;
 
-bool DownEnemySnap(void *enemy)
-
-{
-    if (!enemy) return false;
-
-    void *enemyTransform = Component_get_transform(enemy);
-    if (!enemyTransform) return false;
-
-    Vector3 enemyRoot = Transform_INTERNAL_GetPosition(enemyTransform);
-
-    void *HeadTF = TransformNode(*(void **)((uint64_t)enemy + _HeadTF));
-    if (!HeadTF) return false;
-
-    Vector3 enemyHead = Transform_INTERNAL_GetPosition(HeadTF);
-
-    Vector3 headOffset;
-    headOffset.X = enemyHead.X - enemyRoot.X;
-    headOffset.Y = enemyHead.Y - enemyRoot.Y;
-    headOffset.Z = enemyHead.Z - enemyRoot.Z;
-
-    void *LocalPlayer = Current_Local_Player();
-    if (!LocalPlayer) return false;
-
-    void *LPHeadTF = TransformNode(*(void **)((uint64_t)LocalPlayer + _HeadTF));
-    if (!LPHeadTF) return false;
-
-    Vector3 localHead = Transform_INTERNAL_GetPosition(LPHeadTF);
-
-    float offsets[] = { -1.4f, -1.6f, -1.8f, -2.0f, -3.0f, -3.75f };
-    for (int i = 0; i < 4; i++)
-
-    {
-        Vector3 newRoot = enemyRoot;
-        newRoot.Y += offsets[i];
-
-        Vector3 expectedHead;
-        expectedHead.X = newRoot.X + headOffset.X;
-        expectedHead.Y = newRoot.Y + headOffset.Y;
-        expectedHead.Z = newRoot.Z + headOffset.Z;
-
-        void *hitObj = NULL;
-
-        if (!Physics_Raycast(localHead, expectedHead, 12, &hitObj))
-
-        {
-            Transform_set_position(enemyTransform, newRoot);
-            return true;
-        }
-
-    }
-
-    return false;
-}
+bool DownEnemySnap(void *enemy) { return false; }
 
 
 float TimerTakeDamageinit = 0.0f;
@@ -2661,324 +2595,15 @@ void SupermanJump(void* player)
 }
 
 namespace DownPlayer {
-    bool active = false;
-    Vector3 originalPos = {0, 0, 0};
-    bool firstTime = true;
-
-    void Update() {
-        if (!MasterBool.DiveKill && !active) return;
-        if (_HeadTF == 0 || _HeadTF == (uintptr_t)-1) return;
-        if (_RootTF == 0 || _RootTF == (uintptr_t)-1) return;
-
-        void* lp = Current_Local_Player();
-        if (!lp) {
-            active = false;
-            return;
-        }
-        void* headBone = *(void**)((uintptr_t)lp + _HeadTF);
-        if (!headBone) return;
-
-        void* t = *(void**)((uintptr_t)headBone + 0x8);
-        if (!t) return;
-
-        void* o = *(void**)((uintptr_t)t + 0x8);
-        if (!o) return;
-
-        void* matrix = *(void**)((uintptr_t)o + 0x20);
-        if (!matrix) return;
-
-        Vector3 current = *(Vector3*)((uintptr_t)matrix + 0x60);
-
-        if (MasterBool.DiveKill) {
-
-            if (!active || firstTime) {
-                originalPos = current;
-                active = true;
-                firstTime = false;
-            }
-
-            Vector3 underground = current;
-            underground.Y -= 3.0f;
-
-            void* pesBone = *(void**)((uintptr_t)lp + _RootTF);
-            if (!pesBone) return;
-
-            void* pesT = *(void**)((uintptr_t)pesBone + 0x8);
-            if (!pesT) return;
-
-            void* pesO = *(void**)((uintptr_t)pesT + 0x8);
-            if (!pesO) return;
-
-            void* pesMatrix = *(void**)((uintptr_t)pesO + 0x20);
-            if (!pesMatrix) return;
-
-            *(Vector3*)((uintptr_t)pesMatrix + 0x60) = underground;
-            *(Vector3*)((uintptr_t)matrix + 0x60) = underground;
-
-        } else {
-
-            if (active) {
-                void* pesBone = *(void**)((uintptr_t)lp + _RootTF);
-                if (pesBone) {
-                    void* pesT = *(void**)((uintptr_t)pesBone + 0x8);
-                    if (pesT) {
-                        void* pesO = *(void**)((uintptr_t)pesT + 0x8);
-                        if (pesO) {
-                            void* pesMatrix = *(void**)((uintptr_t)pesO + 0x20);
-                            if (pesMatrix) {
-                                *(Vector3*)((uintptr_t)pesMatrix + 0x60) = originalPos;
-                            }
-                        }
-                    }
-                }
-                *(Vector3*)((uintptr_t)matrix + 0x60) = originalPos;
-                active = false;
-                firstTime = true;
-            }
-        }
-    }
+    void Update() {}
 }
 
 namespace DownEnemy {
-    bool active = false;
-    Vector3 originalPos = {0, 0, 0};
-    void* lastEnemy = nullptr;
-
-    void ResetEnemy(void* enemy) {
-        if (!enemy) return;
-
-        void* headBone = *(void**)((uintptr_t)enemy + _HeadTF);
-        if (!headBone) return;
-
-        void* t = *(void**)((uintptr_t)headBone + 0x8);
-        if (!t) return;
-
-        void* o = *(void**)((uintptr_t)t + 0x8);
-        if (!o) return;
-
-        void* matrix = *(void**)((uintptr_t)o + 0x20);
-        if (!matrix) return;
-
-        void* pesBone = *(void**)((uintptr_t)enemy + _RootTF);
-        if (pesBone) {
-            void* pesT = *(void**)((uintptr_t)pesBone + 0x8);
-            if (pesT) {
-                void* pesO = *(void**)((uintptr_t)pesT + 0x8);
-                if (pesO) {
-                    void* pesMatrix = *(void**)((uintptr_t)pesO + 0x20);
-                    if (pesMatrix) {
-                        *(Vector3*)((uintptr_t)pesMatrix + 0x60) = originalPos;
-                    }
-                }
-            }
-        }
-
-        *(Vector3*)((uintptr_t)matrix + 0x60) = originalPos;
-    }
-
-    void Update() {
-        if (!MasterBool.downplayerV2 && !active) return;
-        if (_HeadTF == 0 || _HeadTF == (uintptr_t)-1) return;
-        if (_RootTF == 0 || _RootTF == (uintptr_t)-1) return;
-
-        if (!MasterBool.downplayerV2) {
-            if (active && lastEnemy) {
-                ResetEnemy(lastEnemy);
-                active = false;
-                lastEnemy = nullptr;
-            }
-            return;
-        }
-
-        void* targetEnemy = cachedTarget ? cachedTarget : BestEnemyFind(nullptr);
-        if (!targetEnemy) {
-            targetEnemy = cachedTarget360 ? cachedTarget360 : BestEnemyFind360();
-        }
-
-        if (!targetEnemy) {
-            if (active && lastEnemy) {
-                ResetEnemy(lastEnemy);
-                active = false;
-                lastEnemy = nullptr;
-            }
-            return;
-        }
-
-        if (lastEnemy && lastEnemy != targetEnemy) {
-            ResetEnemy(lastEnemy);
-            active = false;
-        }
-
-        lastEnemy = targetEnemy;
-
-        void* headBone = *(void**)((uintptr_t)targetEnemy + _HeadTF);
-        if (!headBone) return;
-
-        void* t = *(void**)((uintptr_t)headBone + 0x8);
-        if (!t) return;
-
-        void* o = *(void**)((uintptr_t)t + 0x8);
-        if (!o) return;
-
-        void* matrix = *(void**)((uintptr_t)o + 0x20);
-        if (!matrix) return;
-
-        Vector3 current = *(Vector3*)((uintptr_t)matrix + 0x60);
-
-        if (!active) {
-            originalPos = current;
-            active = true;
-        }
-
-        Vector3 underground = current;
-        underground.Y -= 3.0f;
-
-        void* pesBone = *(void**)((uintptr_t)targetEnemy + _RootTF);
-        if (!pesBone) return;
-
-        void* pesT = *(void**)((uintptr_t)pesBone + 0x8);
-        if (!pesT) return;
-
-        void* pesO = *(void**)((uintptr_t)pesT + 0x8);
-        if (!pesO) return;
-
-        void* pesMatrix = *(void**)((uintptr_t)pesO + 0x20);
-        if (!pesMatrix) return;
-
-        *(Vector3*)((uintptr_t)pesMatrix + 0x60) = underground;
-        *(Vector3*)((uintptr_t)matrix + 0x60) = underground;
-    }
+    void Update() {}
 }
 
-// ======================================================================
-//  DOWN KILL MAX VIP (THỐNG NHẤT)
-//  - 1 switch (MasterBool.downKillMaxVip) điều khiển cả local & all enemies
-//  - Local:   -2.5m (lock, save/restore 0-delay khi OFF)
-//  - Enemies: -2.8m (tất cả enemy, lọc teammate/chết/knocked)
-//  - Smooth LERP (không giật / cực mượt) — Lerp 22% xuống, 65% lên
-//  - OFF: restore NGAY LẬP TỨC (không chờ lerp), clear state bộ nhớ
-//  - Tự lấy GetEntities() → không cần tham số ClosestEnemy
-// ======================================================================
-static const float kDownVip_EnemyY    = -2.8f;
-static const float kDownVip_LocalY    = -2.5f;
-static const float kDownVip_LerpDown  =  0.22f;
-static const float kDownVip_LerpUp    =  0.65f;
 
-struct DKV_EnemyState { void* ptr; Vector3 save; Vector3 cur; bool alive; };
-struct DKV_LocalState { bool prev;    Vector3 save; Vector3 cur; };
-
-static std::map<void*, DKV_EnemyState> g_dkvEnemies;
-static DKV_LocalState                   g_dkvLocal = { false, Vector3::Zero(), Vector3::Zero() };
-
-static inline float   dkv_clamp01(float v)               { return v<0?0: v>1?1:v; }
-static inline Vector3 dkv_lerp(const Vector3& a, const Vector3& b, float t) {
-    t = dkv_clamp01(t);
-    return Vector3(a.X+(b.X-a.X)*t, a.Y+(b.Y-a.Y)*t, a.Z+(b.Z-a.Z)*t);
-}
-static inline void*   dkv_match() {
-    if (!_GameFacade) return nullptr;
-    void* MG = *(void**)((uint64_t)_GameFacade + _StaticClass); if (!MG) return nullptr;
-    void* CMG= *(void**)((uint64_t)MG + _MatchGame);            if (!CMG)return nullptr;
-    return *(void**)((uint64_t)CMG+ _Match);
-}
-
-void DownKillMaxVip(void* closestHint = nullptr)
-{
-    if (!InActiveMatch()) {
-        g_dkvEnemies.clear();
-        g_dkvLocal = {false, Vector3::Zero(), Vector3::Zero()};
-        return;
-    }
-
-    if (!MasterBool.downKillMaxVip && !g_dkvLocal.prev && g_dkvEnemies.empty()) return;
-
-    void* local = Current_Local_Player(); if (!local) return;
-    void* ltf   = Component_get_transform(local); if (!ltf) return;
-    const bool on = MasterBool.downKillMaxVip;
-
-    // ===== LOCAL =====
-    {
-        Vector3 L = Transform_INTERNAL_GetPosition(ltf);
-        if ( on && !g_dkvLocal.prev) { g_dkvLocal.save = L; g_dkvLocal.cur = L; }
-        if (!on &&  g_dkvLocal.prev) { Transform_set_position(ltf, g_dkvLocal.save); g_dkvLocal = {false,Vector3::Zero(),Vector3::Zero()}; }
-        else if (on) {
-            Vector3 tgt = Vector3(L.X, g_dkvLocal.save.Y + kDownVip_LocalY, L.Z);
-            g_dkvLocal.cur = dkv_lerp(g_dkvLocal.cur, tgt, kDownVip_LerpDown);
-            g_dkvLocal.cur.X = L.X;
-            g_dkvLocal.cur.Z = L.Z;
-            Transform_set_position(ltf, g_dkvLocal.cur);
-            g_dkvLocal.prev = true;
-        } else g_dkvLocal.prev = false;
-    }
-
-    // ===== ALL ENEMIES =====
-    {
-        void* match = Current_Match();
-        if (!match) return;
-
-        std::vector<void*> arr = GetEntities(match);
-        if (arr.empty() && closestHint) {
-            arr.push_back(closestHint);
-        }
-
-        if (on) {
-            for (auto& kv : g_dkvEnemies) kv.second.alive = false;
-
-            for (void* e : arr) {
-                if (!e || e == local)                         continue;
-                if (IsDieing(e) || GetHp(e) <= 0)             continue;
-                if (IsLocalTeammate(e))                       continue;
-                void* tf = Component_get_transform(e);        if (!tf) continue;
-                Vector3 P  = Transform_INTERNAL_GetPosition(tf);
-
-                auto it = g_dkvEnemies.find(e);
-                if (it == g_dkvEnemies.end()) {
-                    DKV_EnemyState s{e, P, P, true};
-                    g_dkvEnemies[e] = s;
-                    it = g_dkvEnemies.find(e);
-                } else it->second.alive = true;
-                DKV_EnemyState& st = it->second;
-
-                if (st.save.X==0 && st.save.Y==0 && st.save.Z==0) { st.save=P; st.cur=P; }
-                Vector3 tgt = Vector3(st.save.X, st.save.Y + kDownVip_EnemyY, st.save.Z);
-
-                float dxz = (P.X-st.save.X)*(P.X-st.save.X) + (P.Z-st.save.Z)*(P.Z-st.save.Z);
-                if (dxz > 0.09f) {
-                    st.save.X = P.X; st.save.Z = P.Z;
-                    st.cur .X = P.X; st.cur .Z = P.Z;
-                    tgt.X = P.X;      tgt.Z = P.Z;
-                }
-                st.cur = dkv_lerp(st.cur, tgt, kDownVip_LerpDown);
-                Transform_set_position(tf, st.cur);
-            }
-
-            // Clean up enemies that died or left
-            for (auto it = g_dkvEnemies.begin(); it != g_dkvEnemies.end(); ) {
-                if (!it->second.alive) {
-                    it = g_dkvEnemies.erase(it);
-                } else {
-                    ++it;
-                }
-            }
-        } else {
-            // Restore when turned OFF: only restore if entity is still present in current arr
-            if (!g_dkvEnemies.empty()) {
-                for (auto& kv : g_dkvEnemies) {
-                    DKV_EnemyState& s = kv.second;
-                    bool exists = false;
-                    for (void* a : arr) {
-                        if (a == s.ptr) { exists = true; break; }
-                    }
-                    if (exists && (s.save.X!=0 || s.save.Y!=0 || s.save.Z!=0)) {
-                        void* tf = Component_get_transform(s.ptr);
-                        if (tf) Transform_set_position(tf, s.save);
-                    }
-                }
-                g_dkvEnemies.clear();
-            }
-        }
-    }
-}
+void DownKillMaxVip(void* closestHint = nullptr) {}
 
 void AESPName()
 
@@ -3221,12 +2846,6 @@ static void OnStopCatapultFalling(void* player) { }
 bool (*orig_IsVisible)(void *Player);
 
 bool hook_IsVisible(void *Player) {
-    if (MasterBool.Invisible && InActiveMatch()) {
-        void *localPlayer = Current_Local_Player();
-        if (Player != nullptr && Player == localPlayer) {
-            return false;
-        }
-    }
     return orig_IsVisible ? orig_IsVisible(Player) : true;
 }
 
@@ -3235,16 +2854,14 @@ void hook_UpdateBehavior(void *Player, float a, float b) {
     if (orig_UpdateBehavior) orig_UpdateBehavior(Player, a, b);
 
     if (!Player) return;
-    if (!InActiveMatch()) {
-        if (g_dkvLocal.prev || !g_dkvEnemies.empty()) {
-            g_dkvEnemies.clear();
-            g_dkvLocal = {false, Vector3::Zero(), Vector3::Zero()};
-        }
-        return;
-    }
+    if (!InActiveMatch()) return;
 
     void *localPlayer = Current_Local_Player();
     if (Player == localPlayer && localPlayer != nullptr) {
+        if (!MasterBool.enableFunctions) {
+            return;
+        }
+
         if (MasterBool.autoGlider) {
             hilll_gliderbkc(Player);
             TriggerInfiniteGlide(Player);
@@ -3253,20 +2870,12 @@ void hook_UpdateBehavior(void *Player, float a, float b) {
         if (MasterBool.flyexploit) {
             FlyExploitSBG(localPlayer);
         }
-
-        if (MasterBool.downKillMaxVip || g_dkvLocal.prev || !g_dkvEnemies.empty()) {
-            DownKillMaxVip();
-        }
-
-        if (MasterBool.Invisible) {
-            FootBallNew();
-        }
     }
 }
 
 bool (*orig_SpeedBypass)(void* instance);
 bool hook_SpeedBypass(void* instance) {
-    if (MasterBool.speedhackjoy) {
+    if (MasterBool.enableFunctions && MasterBool.speedhackjoy) {
         return true;
     }
     return orig_SpeedBypass(instance);
@@ -3274,7 +2883,7 @@ bool hook_SpeedBypass(void* instance) {
 
 bool (*orig_SpeedHack)(void* instance);
 bool hook_SpeedHack(void* instance) {
-    if (MasterBool.speedhackjoy) {
+    if (MasterBool.enableFunctions && MasterBool.speedhackjoy) {
         return true;
     }
     return orig_SpeedHack(instance);
@@ -3283,7 +2892,7 @@ bool hook_SpeedHack(void* instance) {
 float(*FIRE_BACKUP)(void* thiz);
 
 float FIRE_HOOK(void* thiz) {
-    if (thiz != nullptr )
+    if (thiz != nullptr && MasterBool.enableFunctions)
     {
         if (MasterBool.fastfuck){
             return 0.1f;
@@ -3295,7 +2904,7 @@ float FIRE_HOOK(void* thiz) {
 float(*SPEED_BACKUP)(void *thiz, int type);
 
 float SPEED_HOOK(void* thiz, int type) {
-    if (thiz != nullptr ) {
+    if (thiz != nullptr && MasterBool.enableFunctions) {
         if (MasterBool.fastfiremax) {
             return 0.35f;
 
@@ -3330,6 +2939,9 @@ GCommon_AnimationRuntimeHandle_o *_GetCurrentRunningHandler(GCommon_AnimationSys
 
 {
     if (Instance != nullptr && layerIndex == 0) {
+        if (!MasterBool.enableFunctions) {
+            return GetCurrentRunningHandler(Instance, layerIndex);
+        }
         std::chrono::steady_clock::time_point current_time = std::chrono::steady_clock::now();
         auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(current_time - last_update_time).count();
         if (elapsed_time > 55) {
@@ -3384,8 +2996,6 @@ GCommon_AnimationRuntimeHandle_o *_GetCurrentRunningHandler(GCommon_AnimationSys
             FastSwitch();
             SuperFastAutoSwitchLoop1();
             NormalAutoSwitchLoop();
-            DownPlayer::Update();
-            DownEnemy::Update();
 
             void *LocalPlayer = Current_Local_Player();
             if (LocalPlayer != nullptr) {
@@ -3452,19 +3062,19 @@ bool (*NoBUlletTractOriginal)(void* weapon, COW_GamePlay_MADMMIICBNN_o *hitInfo)
 bool(*MedikitRun)(bool* instance);
 
 bool _MedikitRun(bool* instance)  {
-    return (MasterBool.medikitrun) ? false : MedikitRun(instance);
+    return (MasterBool.enableFunctions && MasterBool.medikitrun) ? false : MedikitRun(instance);
 }
 
 bool(*DoubleGun)(bool* instance);
 
 bool _DoubleGun(bool* instance){
-    return (MasterBool.doublegun) ? true : DoubleGun(instance);
+    return (MasterBool.enableFunctions && MasterBool.doublegun) ? true : DoubleGun(instance);
 }
 
 bool (*ResetGuest)(bool* instance);
 
 bool _ResetGuest(bool* instance) {
-    return (MasterBool.resetguest) ? true : ResetGuest(instance);
+    return (MasterBool.enableFunctions && MasterBool.resetguest) ? true : ResetGuest(instance);
 }
 
 typedef int (*CalcRealDamage_fn)(float, void*, void*, void*, void*, int, void*, void*, float, uint32_t);
@@ -3472,7 +3082,7 @@ static CalcRealDamage_fn orig_CalcRealDamage = nullptr;
 
 static int hook_CalcRealDamage(float baseDamage, void* hitPart, void* damageInfo, void* damager, void* beDamager, int weaponDataID, void* damagerWeaponDynamicInfo, void* weapon, float overrideHeadshot, uint32_t flag) {
     int result = orig_CalcRealDamage(baseDamage, hitPart, damageInfo, damager, beDamager, weaponDataID, damagerWeaponDynamicInfo, weapon, overrideHeadshot, flag);
-    if (MasterBool.Aimkill && result > 0) {
+    if (MasterBool.enableFunctions && MasterBool.Aimkill && result > 0) {
         int enemyHp = GetHp(beDamager);
         int weaponDamage = (int)baseDamage;
         if (enemyHp > 0 && enemyHp >= 30 && enemyHp <= 100 && weaponDamage > 0 && weaponDamage < 200 && weaponDamage >= enemyHp) {
@@ -3500,7 +3110,7 @@ static int hook_CalcRealDamage(float baseDamage, void* hitPart, void* damageInfo
 float (*old_GetCurrentDashSpeed)(void *instance);
 float hook_GetCurrentDashSpeed(void *instance) {
     void* localPlayer = Current_Local_Player();
-    if (instance != nullptr && instance == localPlayer && MasterBool.speedrun) {
+    if (MasterBool.enableFunctions && instance != nullptr && instance == localPlayer && MasterBool.speedrun) {
         return 9.0f;
     }
     return old_GetCurrentDashSpeed(instance);

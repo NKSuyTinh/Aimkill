@@ -38,7 +38,7 @@ Java_com_terminalx999_Menu_imageBase64(JNIEnv *env, jclass thiz) {
 }
 
 struct {
-    bool Invisible = false;
+    bool enableFunctions = false;
     bool noDelay = false;
     bool flyexploit = false;
     bool hidedamage = false;
@@ -126,10 +126,10 @@ JNIEXPORT void JNICALL
 Java_com_terminalx999_Menu_Functions(JNIEnv *env, jclass clazz) {
     Widget widget = Widget(env);
     widget.Tab(OBFUSCATE("AIM"));
+    widget.Switch(OBFUSCATE("ENABLE FUNCTIONS"), 9001);
     widget.Switch(OBFUSCATE("AIMKILL 360"), 5662);
     widget.Switch(OBFUSCATE("AIMKILL SEND V2"), 5663);
     widget.Switch(OBFUSCATE("SAFE AIMKILL"), 5664);
-    widget.Switch(OBFUSCATE("DOWN KILL V2"), 504);
     widget.Switch(OBFUSCATE("FLY UP"), 5665);
     widget.Switch(OBFUSCATE("COVER ELIMINATION"), 107);
     widget.Switch(OBFUSCATE("COVER PULL"), 509);
@@ -137,7 +137,6 @@ Java_com_terminalx999_Menu_Functions(JNIEnv *env, jclass clazz) {
     widget.Switch(OBFUSCATE("AIMKILL TARGET ALL"), 1050);
     widget.SeekBar(OBFUSCATE("AIMFOV"), 1000, 1000, "x", 104);
     widget.Tab(OBFUSCATE("BRTL"));
-    widget.Switch(OBFUSCATE("INVISIBLE HACK"), 5666);
     widget.Switch(OBFUSCATE("SPEED TIMER"), 5667);
     widget.Tab(OBFUSCATE("ESP"));
     widget.Switch(OBFUSCATE("ESP LINE"), 1);
@@ -150,8 +149,6 @@ Java_com_terminalx999_Menu_Functions(JNIEnv *env, jclass clazz) {
     widget.Tab(OBFUSCATE("MISC"));
     widget.Switch(OBFUSCATE("RAPID FIRE"), 518);
     widget.Switch(OBFUSCATE("FAST RELOAD"), 519);
-    widget.Switch(OBFUSCATE("DOWN ENEMY"), 5658);
-    widget.Switch(OBFUSCATE("DOWN PLAYER"), 5660);
     widget.Switch(OBFUSCATE("DASH SPEED"), 507);
     widget.Switch(OBFUSCATE("JOYSTICK SPEED"), 114);
     widget.Switch(OBFUSCATE("SPEED BOOST (EXTERNAL)"), 1060);
@@ -187,21 +184,21 @@ Java_com_terminalx999_Menu_ChangesID(JNIEnv *env, jclass clazz, jint id, jint va
             pAimbotPlayer.Aimkillsend = (value == 1);
             SendFeatuere(5663, pAimbotPlayer.Aimkillsend);
             break;
+        case 9001:
+            MasterBool.enableFunctions = (value == 1);
+            SendFeatuere(9001, MasterBool.enableFunctions);
+            break;
         case 5664:
             pAimbotPlayer.SafeAimkill = (value == 1);
             SendFeatuere(5664, pAimbotPlayer.SafeAimkill);
             break;
         case 504:
-            pAimbotPlayer.divekillnew = (value == 1);
-            SendFeatuere(504, pAimbotPlayer.divekillnew);
             break;
         case 5665:
             MasterBool.flyexploit = (value == 1);
             SendFeatuere(5665, MasterBool.flyexploit);
             break;
         case 5666:
-            MasterBool.Invisible = (value == 1);
-            SendFeatuere(5666, MasterBool.Invisible);
             break;
         case 5667:
             MasterBool.noDelay = (value == 1);
@@ -298,11 +295,7 @@ Java_com_terminalx999_Menu_ChangesID(JNIEnv *env, jclass clazz, jint id, jint va
             break;
 
         case 5658:
-            SendFeatuere(504, (value == 1));
-            break;
         case 5660:
-            pAimbotPlayer.divekillnew = (value == 1);
-            SendFeatuere(5660, pAimbotPlayer.divekillnew);
             break;
         case 1060:
             MasterBool.speedext = (value == 1);
@@ -344,6 +337,13 @@ JNIEXPORT void JNICALL
 Java_com_terminalx999_Menu_OnDrawLoad(JNIEnv *env, jclass clazz, jobject draw_view, jobject canvas) {
     DrawView draw = DrawView(env, draw_view, canvas);
     if (draw.isValid()) {
+        // Safe On-Screen Credit Text / Watermark
+        draw.DrawText(Color(0, 229, 255, 230), "★ Onyx Aimkill | Dev by onyxontop._ | discord.gg/hBGz2wy67T ★", Vector2(draw.getWidth() / 2.0f, 25.0f), 12.0f);
+
+        if (!MasterBool.enableFunctions) {
+            return;
+        }
+
         Response response = getData(draw.getWidth(), draw.getHeight());
         s_lastMatchAlive = response.matchAlive;
         s_lastRemainingTimeSeconds = response.remainingTimeSeconds;

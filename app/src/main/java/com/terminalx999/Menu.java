@@ -403,24 +403,33 @@ public class Menu {
 
         LinearLayout container_top = new LinearLayout(context);
         container_top.setLayoutParams(new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, utils.FixDP(42)));
-        container_top.setPadding(utils.FixDP(8), utils.FixDP(6), utils.FixDP(8), 0);
+                ViewGroup.LayoutParams.MATCH_PARENT, utils.FixDP(46)));
+        container_top.setPadding(utils.FixDP(8), utils.FixDP(4), utils.FixDP(8), utils.FixDP(4));
         container_top.setGravity(Gravity.CENTER);
-        container_top.setOrientation(LinearLayout.HORIZONTAL);
+        container_top.setOrientation(LinearLayout.VERTICAL);
 
         Typeface kcFont = null;
         try { kcFont = Typeface.createFromAsset(context.getAssets(), "kcfonts/ethnocentric.ttf"); } catch (Exception e) {}
 
         TextView titleView = new TextView(context);
-        titleView.setText("PHX CORP");
+        titleView.setText("★ ONYX AIMKILL ★");
         titleView.setTextColor(PrimaryColor);
-        titleView.setTextSize(11);
+        titleView.setTextSize(12);
         titleView.setSingleLine(true);
         titleView.setGravity(Gravity.CENTER);
         titleView.setTypeface(kcFont != null ? kcFont : Typeface.create("sans-serif-black", Typeface.BOLD), Typeface.BOLD);
         applySweepingGradient(titleView);
 
+        TextView creditText = new TextView(context);
+        creditText.setText("Dev by onyxontop._ | discord.gg/hBGz2wy67T");
+        creditText.setTextColor(0xFF00E5FF);
+        creditText.setTextSize(8);
+        creditText.setSingleLine(true);
+        creditText.setGravity(Gravity.CENTER);
+        creditText.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+
         container_top.addView(titleView);
+        container_top.addView(creditText);
 
         View headerSeparator = new View(context);
         headerSeparator.setLayoutParams(new LinearLayout.LayoutParams(
