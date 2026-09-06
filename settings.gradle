@@ -1,0 +1,3 @@
+rootProject.name = 'NX_AIMKILL'
+include ':app'
+
