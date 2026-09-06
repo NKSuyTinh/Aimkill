@@ -211,7 +211,6 @@ Java_com_terminalx999_Menu_ChangesID(JNIEnv *env, jclass clazz, jint id, jint va
             pMemoryTools.speedrun = (value != 0);
             SendFeatuere(507, pMemoryTools.speedrun);
             break;
-        case 509:
         case 107:
             pAimbotPlayer.AimkillSendCoverPull = (value == 1);
             SendFeatuere(1048, pAimbotPlayer.AimkillSendCoverPull);
