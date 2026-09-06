@@ -135,29 +135,19 @@ public class Menu {
         GradientDrawable bg = new GradientDrawable();
         bg.setCornerRadius(utils.FixDP(16));
         if (active) {
-            bg.setColor(0xFFFF0000);
+            bg.setColor(0xFFFFE082);
         } else {
             bg.setColor(0xFF222222);
         }
         return bg;
     }
 
-    // Native Functions - Init requires context; call nativeVerifyCredentials before
-    // Init.
     public static native void Functions();
 
     public static native void ChangesID(int ID, int Value);
 
-    /**
-     * Must call nativeVerifyCredentials(context, user, pass) first. If false, do
-     * not call Init (app corrupted).
-     */
     public static native void Init(Context context);
 
-    /**
-     * Returns int[2]: { matchAlive, remainingTimeSeconds }. Used for keybind
-     * overlay timer.
-     */
     public static native int[] getMatchTimerStatus();
     public static native void LockPlayer(long ptr);
     public static native String[] getEnemyList();
@@ -166,23 +156,22 @@ public class Menu {
     public static String target = "com.dts.freefireth";
     private int injectType;
 
-    // Minimal Clean theme
     private int buttonClick = 0;
-    public static int PrimaryColor = 0xFFE53935; // Red accent
-    public static int TabSelectedColor = 0xFFE53935;
-    private static final int AccentBorderColor = 0xFFE53935;
-    private static final int AccentGradientEnd = 0xFFB71C1C;
-    private static final int MenuBgColor = 0xFF0D0D0D; // Near-black
-    private static final int MenuBorderColor = 0xFF1A1A1A; // Subtle divider
+    public static int PrimaryColor = 0xFFFFE082;
+    public static int TabSelectedColor = 0xFFFFE082;
+    private static final int AccentBorderColor = 0xFFFFE082;
+    private static final int AccentGradientEnd = 0xFFFFD54F;
+    private static final int MenuBgColor = 0xFF0D0D0D;
+    private static final int MenuBorderColor = 0xFF2A2A20;
     private static final int CardBgColor = 0xFF0D0D0D;
-    private static final int CardBorderColor = 0xFF1A1A1A;
-    private static final int InactiveTabBgColor = 0x00000000; // Fully transparent
-    private static final int InactiveTabBorderColor = 0x00000000; // No border
-    private static final int InactiveTabTextColor = 0xFF666666; // Dimmed text
+    private static final int CardBorderColor = 0xFF1F1F18;
+    private static final int InactiveTabBgColor = 0x00000000;
+    private static final int InactiveTabBorderColor = 0x00000000;
+    private static final int InactiveTabTextColor = 0xFF777777;
     private static final int KeybindBtnBgColor = 0x1AFFFFFF;
     private static final int KeybindBtnBorderColor = 0xFF333333;
-    private static final int TextPrimaryColor = 0xFFF5F5F5; // Clean white
-    private static final int TextSecondaryColor = 0xFF999999; // Soft grey
+    private static final int TextPrimaryColor = 0xFFFDFDFD;
+    private static final int TextSecondaryColor = 0xFF999999;
     private static Context context;
     private static Utils utils;
 
@@ -299,17 +288,34 @@ public class Menu {
         }
 
         drawView = new DrawView(context);
+
+        android.util.DisplayMetrics realMetrics = new android.util.DisplayMetrics();
+        windowManager.getDefaultDisplay().getRealMetrics(realMetrics);
+
+        int flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                | WindowManager.LayoutParams.FLAG_FULLSCREEN
+                | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+                | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+                | WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED;
+
         windowManagerDrawViewParams = new WindowManager.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT,
+                realMetrics.widthPixels,
+                realMetrics.heightPixels,
                 LAYOUT_FLAG,
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL |
-                        WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE |
-                        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE |
-                        WindowManager.LayoutParams.FLAG_FULLSCREEN |
-                        WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
+                flags,
                 PixelFormat.TRANSPARENT);
-        windowManagerDrawViewParams.gravity = Gravity.CENTER;
+
+        windowManagerDrawViewParams.gravity = Gravity.TOP | Gravity.START;
+        windowManagerDrawViewParams.x = 0;
+        windowManagerDrawViewParams.y = 0;
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            windowManagerDrawViewParams.layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+        }
+
         windowManager.addView(drawView, windowManagerDrawViewParams);
     }
 
@@ -341,9 +347,9 @@ public class Menu {
         int menuHeight = utils.FixDP(340);
 
         GradientDrawable gradientDrawable_container = new GradientDrawable(
-                GradientDrawable.Orientation.TL_BR, new int[]{0xFA0D0D12, 0xFA050508});
-        gradientDrawable_container.setCornerRadius(utils.FixDP(18));
-        gradientDrawable_container.setStroke(utils.FixDP(2), 0xFFFF1A3C);
+                GradientDrawable.Orientation.TL_BR, new int[]{0xFA0D0D10, 0xFA08080A});
+        gradientDrawable_container.setCornerRadius(utils.FixDP(16));
+        gradientDrawable_container.setStroke(utils.FixDP(1), 0xFFFFE082);
 
         LinearLayout container = new LinearLayout(context);
         container.setOrientation(LinearLayout.VERTICAL);
@@ -356,14 +362,13 @@ public class Menu {
         container_menu.setOrientation(LinearLayout.VERTICAL);
         container_menu.setVisibility(View.GONE);
         container_menu.setBackground(gradientDrawable_container);
-        startBreathingAnimation(gradientDrawable_container, container_menu, utils.FixDP(2), 0xFFFF1A3C, 0xFFFF6600);
+        startBreathingAnimation(gradientDrawable_container, container_menu, utils.FixDP(1), 0xFFFFE082, 0xFFFFCA28);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             container_menu.setElevation(utils.FixDP(20));
             container_menu.setClipToOutline(true);
         }
 
-        // Floating icon - Circular shape with neon glowing stroke ring
         icon_cheat = new ImageBase64(context);
         icon_cheat.setLayoutParams(new LinearLayout.LayoutParams(
                 utils.FixDP(46), utils.FixDP(46)));
@@ -377,9 +382,9 @@ public class Menu {
         GradientDrawable iconBg = new GradientDrawable();
         iconBg.setShape(GradientDrawable.OVAL);
         iconBg.setColor(0xFF0F0F14);
-        iconBg.setStroke(utils.FixDP(2), PrimaryColor);
+        iconBg.setStroke(utils.FixDP(1), PrimaryColor);
         icon_cheat.setBackground(iconBg);
-        startBreathingAnimation(iconBg, icon_cheat, utils.FixDP(2), 0xFFFF1A3C, 0xFFFF7700);
+        startBreathingAnimation(iconBg, icon_cheat, utils.FixDP(1), 0xFFFFE082, 0xFFFFD54F);
 
         icon_cheat.setOnTouchListener(onTouchListener());
         icon_cheat.setOnClickListener(new View.OnClickListener() {
@@ -396,7 +401,6 @@ public class Menu {
             }
         });
 
-        // Header - Circular logo + BanAimKill title
         LinearLayout container_top = new LinearLayout(context);
         container_top.setLayoutParams(new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, utils.FixDP(42)));
@@ -406,65 +410,29 @@ public class Menu {
 
         Typeface kcFont = null;
         try { kcFont = Typeface.createFromAsset(context.getAssets(), "kcfonts/ethnocentric.ttf"); } catch (Exception e) {}
-        
-        android.widget.ImageView headerLogo = new android.widget.ImageView(context);
-        LinearLayout.LayoutParams logoLp = new LinearLayout.LayoutParams(utils.FixDP(26), utils.FixDP(26));
-        logoLp.rightMargin = utils.FixDP(6);
-        headerLogo.setLayoutParams(logoLp);
-        android.graphics.Bitmap headerBm = Utils.getBannerBitmap(context);
-        if (headerBm != null) {
-            headerLogo.setImageBitmap(headerBm);
-        } else {
-            try { headerLogo.setImageDrawable(context.getPackageManager().getApplicationIcon(context.getPackageName())); } catch (Exception ignored) {}
-        }
-        GradientDrawable headerLogoBg = new GradientDrawable();
-        headerLogoBg.setShape(GradientDrawable.OVAL);
-        headerLogoBg.setColor(0xFF151520);
-        headerLogoBg.setStroke(utils.FixDP(2), PrimaryColor);
-        headerLogo.setBackground(headerLogoBg);
-        headerLogo.setPadding(utils.FixDP(2), utils.FixDP(2), utils.FixDP(2), utils.FixDP(2));
 
-        TextView titleRed = new TextView(context);
-        titleRed.setText("Onyx Aimkill ");
-        titleRed.setTextColor(PrimaryColor);
-        titleRed.setTextSize(10);
-        titleRed.setSingleLine(true);
-        titleRed.setGravity(Gravity.CENTER_VERTICAL);
-        titleRed.setTypeface(kcFont != null ? kcFont : Typeface.create("sans-serif-black", Typeface.BOLD), Typeface.BOLD);
-        applySweepingGradient(titleRed);
+        TextView titleView = new TextView(context);
+        titleView.setText("PHX CORP");
+        titleView.setTextColor(PrimaryColor);
+        titleView.setTextSize(11);
+        titleView.setSingleLine(true);
+        titleView.setGravity(Gravity.CENTER);
+        titleView.setTypeface(kcFont != null ? kcFont : Typeface.create("sans-serif-black", Typeface.BOLD), Typeface.BOLD);
+        applySweepingGradient(titleView);
 
-        TextView titleWhite = new TextView(context);
-        titleWhite.setText("AIMKILL MAX");
-        titleWhite.setTextColor(0xFFFFFFFF);
-        titleWhite.setTextSize(10);
-        titleWhite.setSingleLine(true);
-        titleWhite.setGravity(Gravity.CENTER_VERTICAL);
-        titleWhite.setTypeface(kcFont != null ? kcFont : Typeface.create("sans-serif-black", Typeface.BOLD), Typeface.BOLD);
-
-        LinearLayout brandHolder = new LinearLayout(context);
-        brandHolder.setOrientation(LinearLayout.HORIZONTAL);
-        brandHolder.setLayoutParams(new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        brandHolder.setGravity(Gravity.CENTER);
-        brandHolder.addView(headerLogo);
-        brandHolder.addView(titleRed);
-        brandHolder.addView(titleWhite);
-
-        container_top.addView(brandHolder);
+        container_top.addView(titleView);
 
         View headerSeparator = new View(context);
         headerSeparator.setLayoutParams(new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, utils.FixDP(1)));
-        headerSeparator.setBackgroundColor(0x33FF1A3C);
+        headerSeparator.setBackgroundColor(0x33FFE082);
 
-        // Body - Simple vertical layout
         LinearLayout body_wrapper = new LinearLayout(context);
         body_wrapper.setLayoutParams(new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 0, 1.0f));
         body_wrapper.setOrientation(LinearLayout.VERTICAL);
 
-        // Tab bar - Premium glass-effect tab bar
         tabsContainer = new LinearLayout(context);
         LinearLayout.LayoutParams tabContainerLp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, utils.FixDP(40));
@@ -479,7 +447,6 @@ public class Menu {
         tabContainerBg.setStroke(utils.FixDP(1), 0xFF1A1A1A);
         tabsContainer.setBackground(tabContainerBg);
 
-        // Glowing bottom accent line under tabs
         View tabDivider = new View(context);
         LinearLayout.LayoutParams dividerLp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, utils.FixDP(1));
@@ -487,10 +454,9 @@ public class Menu {
         tabDivider.setLayoutParams(dividerLp);
         GradientDrawable dividerGrad = new GradientDrawable(
                 GradientDrawable.Orientation.LEFT_RIGHT,
-                new int[]{0x00000000, 0x44FF1A3C, 0x00000000});
+                new int[]{0x00000000, 0x44FFE082, 0x00000000});
         tabDivider.setBackground(dividerGrad);
 
-        // Center section where features will be displayed
         final LinearLayout container_center = new LinearLayout(context);
         LinearLayout.LayoutParams centerParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -501,7 +467,6 @@ public class Menu {
         container_center.setGravity(Gravity.CENTER);
         container_center.setOrientation(LinearLayout.VERTICAL);
 
-        // Scroll view for features
         scrollView_center = new ScrollView(context);
         scrollView_center.setLayoutParams(new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -509,7 +474,6 @@ public class Menu {
         scrollView_center.setPadding(0, utils.FixDP(2), 0, utils.FixDP(2));
         scrollView_center.setVerticalScrollBarEnabled(false);
 
-        // Container for all feature tabs
         featuresScrollContainer = new LinearLayout(context);
         featuresScrollContainer.setLayoutParams(new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -518,19 +482,16 @@ public class Menu {
 
         scrollView_center.addView(featuresScrollContainer);
 
-        // Loading spinner - red
         final ProgressBar progressBar = new ProgressBar(context);
         progressBar.setLayoutParams(new LinearLayout.LayoutParams(
                 utils.FixDP(32), utils.FixDP(32)));
         progressBar.getIndeterminateDrawable().setColorFilter(PrimaryColor, PorterDuff.Mode.SRC_IN);
 
-        // Bottom divider
         View botDivider = new View(context);
         botDivider.setLayoutParams(new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 1));
-        botDivider.setBackgroundColor(0x22FF1A3C);
+        botDivider.setBackgroundColor(0x22FFE082);
 
-        // Bottom bar - Modern action container
         LinearLayout container_bottom = new LinearLayout(context);
         container_bottom.setLayoutParams(new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, utils.FixDP(44)));
@@ -538,7 +499,7 @@ public class Menu {
         container_bottom.setOrientation(LinearLayout.HORIZONTAL);
 
         GradientDrawable gradientDrawable_inject_close = new GradientDrawable(
-                GradientDrawable.Orientation.LEFT_RIGHT, new int[]{0xFFFF1A3C, 0xFFFF5500});
+                GradientDrawable.Orientation.LEFT_RIGHT, new int[]{0xFFFFE082, 0xFFFFCA28});
         gradientDrawable_inject_close.setCornerRadius(utils.FixDP(16));
 
         final Button inject_close = new Button(context);
@@ -551,7 +512,7 @@ public class Menu {
         inject_close.setTextSize(11);
         inject_close.setAllCaps(false);
         inject_close.setTypeface(null, Typeface.BOLD);
-        inject_close.setTextColor(0xFFFFFFFF);
+        inject_close.setTextColor(0xFF1A1A1A);
         inject_close.setGravity(Gravity.CENTER);
         inject_close.setBackground(gradientDrawable_inject_close);
         inject_close.setOnClickListener(new View.OnClickListener() {
@@ -564,9 +525,9 @@ public class Menu {
                     // Injection Process
                     boolean success = false;
                     if (injectType == 0) {
-                        success = InjectX32("libTERMINALX999.so");
+                        success = InjectX32("libPHXCORP.so");
                     } else {
-                        success = InjectX86("libTERMINALX999.so");
+                        success = InjectX86("libPHXCORP.so");
                     }
 
                     if (success) {
@@ -848,7 +809,7 @@ public class Menu {
             }
 
             TextView creditHeader = new TextView(context);
-            creditHeader.setText("\u2605 Onyx Aimkill \u2605");
+            creditHeader.setText("\u2605  X PHX CORP \u2605");
             creditHeader.setTextSize(9);
             creditHeader.setTypeface(Typeface.DEFAULT_BOLD);
             creditHeader.setTextColor(0xFF00E5FF);
@@ -1027,16 +988,14 @@ public class Menu {
     private static GradientDrawable getGlowingTabDrawable(boolean isSelected) {
         GradientDrawable tabBg;
         if (isSelected) {
-            // Active tab: solid fill with gradient + subtle glow border
             tabBg = new GradientDrawable(
                     GradientDrawable.Orientation.LEFT_RIGHT,
-                    new int[]{0xFFE53935, 0xFFFF5252});
-            tabBg.setCornerRadius(utils.FixDP(9));
-            tabBg.setStroke(utils.FixDP(1), 0x55FF8A80);
+                    new int[]{0xFFFFE082, 0xFFFFD54F});
+            tabBg.setCornerRadius(utils.FixDP(8));
+            tabBg.setStroke(utils.FixDP(1), 0x55FFE082);
         } else {
-            // Inactive tab: transparent with very subtle border
             tabBg = new GradientDrawable();
-            tabBg.setCornerRadius(utils.FixDP(9));
+            tabBg.setCornerRadius(utils.FixDP(8));
             tabBg.setColor(0x00000000);
             tabBg.setStroke(0, 0x00000000);
         }
@@ -1069,7 +1028,7 @@ public class Menu {
         tabButton.setEllipsize(android.text.TextUtils.TruncateAt.END);
 
         tabButton.setBackground(getGlowingTabDrawable(isFirstTab));
-        tabButton.setTextColor(isFirstTab ? 0xFFFFFFFF : 0xFF555566);
+        tabButton.setTextColor(isFirstTab ? 0xFF1A1A1A : 0xFF777777);
 
         tabButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -1109,8 +1068,7 @@ public class Menu {
         for (TextView tabButton : tabButtons) {
             boolean isSelected = tabButton.getText().toString().equalsIgnoreCase(tabName);
             tabButton.setBackground(getGlowingTabDrawable(isSelected));
-            tabButton.setTextColor(isSelected ? 0xFFFFFFFF : 0xFF555566);
-            // Subtle scale animation for selected tab
+            tabButton.setTextColor(isSelected ? 0xFF1A1A1A : 0xFF777777);
             if (isSelected) {
                 tabButton.animate().scaleX(1.0f).scaleY(1.0f).setDuration(200).start();
             } else {
@@ -1204,15 +1162,7 @@ public class Menu {
         textView.setTextSize(11);
         textView.setTypeface(Typeface.create("sans-serif-bold", Typeface.BOLD));
 
-        final TextView subDesc = new TextView(context);
-        subDesc.setLayoutParams(new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        subDesc.setText("Toggle " + name);
-        subDesc.setTextColor(0xFF888888);
-        subDesc.setTextSize(8);
-
         linearLayout.addView(textView);
-        linearLayout.addView(subDesc);
 
         final CheckBox subBox = new CheckBox(context);
         LinearLayout.LayoutParams subLp = new LinearLayout.LayoutParams(utils.FixDP(24), utils.FixDP(24));
@@ -1326,8 +1276,8 @@ public class Menu {
 
         LinearLayout card = new LinearLayout(context);
         card.setLayoutParams(new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, utils.FixDP(50)));
-        card.setPadding(utils.FixDP(16), 0, utils.FixDP(14), 0);
+                ViewGroup.LayoutParams.MATCH_PARENT, utils.FixDP(44)));
+        card.setPadding(utils.FixDP(14), 0, utils.FixDP(12), 0);
         card.setOrientation(LinearLayout.HORIZONTAL);
         card.setGravity(Gravity.CENTER_VERTICAL);
 
@@ -1344,19 +1294,6 @@ public class Menu {
         textView.setTextColor(PrimaryColor);
         textView.setTextSize(11);
         textView.setTypeface(Typeface.create("sans-serif-bold", Typeface.BOLD));
-
-        final TextView subDesc = new TextView(context);
-        subDesc.setLayoutParams(new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        String descStr = name;
-        if (name.equalsIgnoreCase("ENABLE FUNCTIONS")) descStr = "Main Hack Enable";
-        else if (name.equalsIgnoreCase("NOVA NEW")) descStr = "Auto Kill";
-        else if (name.equalsIgnoreCase("GAME SPEED")) descStr = "Increase Game Speed";
-        else if (name.equalsIgnoreCase("CHRONO DEFENDER")) descStr = "Pull enemy out of Chrono shield";
-        else if (name.equalsIgnoreCase("AUTO SWITCH")) descStr = "Auto Weapon Switch";
-        subDesc.setText(descStr);
-        subDesc.setTextColor(0xFF888888);
-        subDesc.setTextSize(8);
 
         final TextView keybindTv = new TextView(context);
         LinearLayout.LayoutParams keybindLp = new LinearLayout.LayoutParams(utils.FixDP(44), utils.FixDP(20));
@@ -1442,25 +1379,10 @@ public class Menu {
                 utils.FixDP(21)));
         idToBindSwitch.put(ID, switchStyle);
         switchStyle.setVisibility(View.GONE);
-        // Add active line state logic
         switchStyle.setOnCheckedChangeListener(new SwitchStyle.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(final SwitchStyle view, boolean isChecked) {
                 customCheckbox.setChecked(isChecked);
-
-                // --- ENABLE ALL ESP MACRO (ID 102) ---
-                if (ID == 102 && isChecked && !isLinkingHacks) {
-                    isLinkingHacks = true;
-                    int[] espIds = {1, 2, 3, 9, 4, 16};
-                    for (int espId : espIds) {
-                        SwitchStyle espSwitch = idToBindSwitch.get(espId);
-                        if (espSwitch != null && !espSwitch.isChecked()) {
-                            espSwitch.setChecked(true);
-                            ChangesID(espId, 1); // Ensure native activation
-                        }
-                    }
-                    isLinkingHacks = false;
-                }
 
                 if (ID == ID_CLEAR_KEYBINDS && isChecked) {
                     clearAllKeybinds();
@@ -1703,10 +1625,6 @@ public class Menu {
             }
         }
 
-        if (ID == 102) {
-            switchStyle.setChecked(false);
-        }
-
         View.OnClickListener toggleOnClick = new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -1715,9 +1633,7 @@ public class Menu {
         };
         card.setOnClickListener(toggleOnClick);
         linearLayout.setOnClickListener(toggleOnClick);
-
         linearLayout.addView(textView);
-        linearLayout.addView(subDesc);
 
         card.addView(linearLayout);
 

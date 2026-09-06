@@ -42,10 +42,10 @@ import java.util.Locale;
 
 public class Login {
 
-    private static final int PrimaryColor = 0xFFE53935;
-    private static final int AccentColor = 0xFFFF6B6B;
+    private static final int PrimaryColor = 0xFFFFE082;
+    private static final int AccentColor = 0xFFFFD54F;
     private static final int CardBgColor = 0xF00D0D0D;
-    private static final int InputBgColor = 0xFF1A1A1A;
+    private static final int InputBgColor = 0xFF141414;
 
     private static String sLoginUsername = "";
     private static String sLoginPassword = "";
@@ -74,18 +74,8 @@ public class Login {
     private ImageView splashLogo;
     private LinearLayout rootContainer;
 
-    private static AuthHelper.LoginResult senniVerifyLicense(Context ctx, String key) {
-        SenniAuth.VerifyResult res = SenniAuth.verify(ctx, key);
-        return new AuthHelper.LoginResult(
-                res.valid,
-                res.message,
-                "AIMCOVER",
-                res.expiryFormatted,
-                res.valid ? "Active" : "Inactive",
-                "",
-                res.hwid
-        );
-    }
+    private static final String APPNAME    = "Onyx";
+    private static final String VERSION    = "1.0";
 
     public static final String PREF_NAME = "LoginPrefs";
     public static final String LICENSE_KEY = "key";
@@ -211,37 +201,17 @@ public class Login {
         headerParams.bottomMargin = dp(25);
         headerContainer.setLayoutParams(headerParams);
 
-        ImageView logoImage = new ImageView(context);
-        LinearLayout.LayoutParams headerLogoParams = new LinearLayout.LayoutParams(dp(52), dp(52));
-        headerLogoParams.rightMargin = dp(12);
-        logoImage.setLayoutParams(headerLogoParams);
-        android.graphics.Bitmap loginLogoBm = Utils.getBannerBitmap(context);
-        if (loginLogoBm != null) {
-            logoImage.setImageBitmap(loginLogoBm);
-        } else {
-            try { logoImage.setImageDrawable(context.getPackageManager().getApplicationIcon(context.getPackageName())); }
-            catch (Exception e) { logoImage.setImageResource(android.R.drawable.sym_def_app_icon); }
-        }
-        GradientDrawable logoBg = new GradientDrawable();
-        logoBg.setShape(GradientDrawable.OVAL);
-        logoBg.setColor(0xFF151520);
-        logoBg.setStroke(dp(2), PrimaryColor);
-        logoImage.setBackground(logoBg);
-        logoImage.setPadding(dp(3), dp(3), dp(3), dp(3));
-        headerContainer.addView(logoImage);
-
-
         TextView appTitle = new TextView(context);
-        appTitle.setText("Onyx Aimkill AIMKILL MAX");
-        appTitle.setTextColor(Color.WHITE);
-        appTitle.setTextSize(11);
+        appTitle.setText("ONYX");
+        appTitle.setTextColor(PrimaryColor);
+        appTitle.setTextSize(14);
         appTitle.setSingleLine(true);
 
         Typeface customFont = null;
         try { customFont = Typeface.createFromAsset(context.getAssets(), "kcfonts/ethnocentric.ttf"); }
         catch (Exception e) { try { customFont = Typeface.createFromAsset(context.getAssets(), "kcfonts/ethnocentric.ttf.ttf"); } catch (Exception ignore) {} }
         appTitle.setTypeface(customFont != null ? customFont : Typeface.create("sans-serif-black", Typeface.BOLD));
-        appTitle.setGravity(Gravity.CENTER_VERTICAL);
+        appTitle.setGravity(Gravity.CENTER);
         applySweepingGradient(appTitle);
 
         headerContainer.addView(appTitle);
@@ -461,10 +431,10 @@ public class Login {
                             slideText.setText("VERIFYING...");
                             slideText.setTextColor(Color.GREEN);
 
-                            final String key = input_username.getText().toString().trim();
+                            String key = input_username.getText().toString().trim();
                             if (key.isEmpty()) {
+                                Toast.makeText(context, "Enter your license key", Toast.LENGTH_SHORT).show();
                                 resetSlide(slideArea, slideText, sliderThumb, progressFill, thumbLp);
-                                Toast.makeText(context, "Please enter a license key!", Toast.LENGTH_SHORT).show();
                                 return true;
                             }
 
@@ -474,19 +444,41 @@ public class Login {
                                 preferences.edit().remove(LICENSE_KEY).apply();
                             }
 
-                            sLoginUsername = key;
-                            sLoginPassword = "Authenticated";
-
                             new Thread(() -> {
-                                final AuthHelper.LoginResult result = senniVerifyLicense(context, key);
-                                ((Activity) context).runOnUiThread(() -> {
-                                    if (result.success) {
-                                        showSellerInfoPopup(result, key);
+                                try {
+                                    SenniAuth.VerifyResult verifyResult = SenniAuth.verify(context, key);
+                                    if (verifyResult.valid) {
+                                        mainHandler.post(() -> {
+                                            sLoginUsername = key;
+                                            sLoginPassword = "Authenticated";
+                                            String subName = "Onyx VIP";
+                                            String expiryFormatted = (verifyResult.expiryStr != null && !verifyResult.expiryStr.isEmpty()) ? verifyResult.expiryStr : "Lifetime";
+
+                                            AuthHelper.LoginResult result = new AuthHelper.LoginResult(
+                                                    true, verifyResult.message, subName,
+                                                    expiryFormatted, "Active", "Active", verifyResult.hwid);
+                                            showSellerInfoPopup(result, key);
+                                        });
                                     } else {
-                                        resetSlide(slideArea, slideText, sliderThumb, progressFill, thumbLp);
-                                        Toast.makeText(context, result.message != null ? result.message : "Authentication failed", Toast.LENGTH_LONG).show();
+                                        mainHandler.post(() -> {
+                                            String errorMsg = verifyResult.message;
+                                            if (errorMsg == null || errorMsg.trim().isEmpty()) {
+                                                errorMsg = "Key không hợp lệ hoặc đã hết hạn!";
+                                            }
+                                            Toast.makeText(context, errorMsg, Toast.LENGTH_LONG).show();
+                                            resetSlide(slideArea, slideText, sliderThumb, progressFill, thumbLp);
+                                        });
                                     }
-                                });
+                                } catch (Exception e) {
+                                    mainHandler.post(() -> {
+                                        String errorMsg = e.getMessage();
+                                        if (errorMsg == null || errorMsg.trim().isEmpty()) {
+                                            errorMsg = "Lỗi kết nối máy chủ xác thực!";
+                                        }
+                                        Toast.makeText(context, errorMsg, Toast.LENGTH_LONG).show();
+                                        resetSlide(slideArea, slideText, sliderThumb, progressFill, thumbLp);
+                                    });
+                                }
                             }).start();
 
                         } else {
@@ -533,8 +525,8 @@ public class Login {
 
             GradientDrawable modalBg = new GradientDrawable(
                     GradientDrawable.Orientation.TL_BR, new int[]{0xFA0E0E16, 0xFA05050A});
-            modalBg.setCornerRadius(utils.FixDP(18));
-            modalBg.setStroke(utils.FixDP(2), PrimaryColor);
+            modalBg.setCornerRadius(utils.FixDP(16));
+            modalBg.setStroke(utils.FixDP(1), PrimaryColor);
             modal.setBackground(modalBg);
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -551,27 +543,19 @@ public class Login {
             try { kcFont = Typeface.createFromAsset(context.getAssets(), "kcfonts/ethnocentric.ttf"); } catch (Exception ignored) {}
 
             TextView hRed = new TextView(context);
-            hRed.setText("Onyx Aimkill ");
+            hRed.setText("ONYX");
             hRed.setTextColor(PrimaryColor);
-            hRed.setTextSize(10);
+            hRed.setTextSize(11);
             hRed.setSingleLine(true);
             hRed.setTypeface(kcFont != null ? kcFont : Typeface.DEFAULT_BOLD, Typeface.BOLD);
             applySweepingGradient(hRed);
 
-            TextView hWhite = new TextView(context);
-            hWhite.setText("AIMKILL MAX");
-            hWhite.setTextColor(0xFFFFFFFF);
-            hWhite.setTextSize(10);
-            hWhite.setSingleLine(true);
-            hWhite.setTypeface(kcFont != null ? kcFont : Typeface.DEFAULT_BOLD, Typeface.BOLD);
-
             headerRow.addView(hRed);
-            headerRow.addView(hWhite);
             modal.addView(headerRow);
 
             View div = new View(context);
             div.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, utils.FixDP(1)));
-            div.setBackgroundColor(0x33FF1A3C);
+            div.setBackgroundColor(0x33FFE082);
             modal.addView(div);
 
             LinearLayout infoCont = new LinearLayout(context);
@@ -579,12 +563,12 @@ public class Login {
             infoCont.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
             infoCont.setPadding(0, utils.FixDP(8), 0, utils.FixDP(10));
 
-            infoCont.addView(createInfoRow("PACKAGE", result.packageName.toUpperCase(), 0xFFFFD700));
-            infoCont.addView(createInfoRow("STATUS", result.status.toUpperCase(), 0xFF00FF88));
+            infoCont.addView(createInfoRow("PACKAGE", result.packageName.toUpperCase(), 0xFFFFE082));
+            infoCont.addView(createInfoRow("STATUS", result.status.toUpperCase(), 0xFF81C784));
             String displayHwid = (result.hwid != null && result.hwid.length() > 8) ? result.hwid : AuthHelper.getDeviceId(context);
             infoCont.addView(createInfoRow("DEVICE", displayHwid.substring(0, Math.min(displayHwid.length(), 16)) + "...", 0xFFCCCCCC));
             
-            final LinearLayout validRow = createInfoRow("EXPIRES", "", 0xFF00E5FF);
+            final LinearLayout validRow = createInfoRow("EXPIRES", "", 0xFFFFE082);
             final TextView validVal = (TextView) validRow.getChildAt(1);
             infoCont.addView(validRow);
 
@@ -605,12 +589,12 @@ public class Login {
             modal.addView(infoCont);
 
             GradientDrawable btnGrad = new GradientDrawable(
-                    GradientDrawable.Orientation.LEFT_RIGHT, new int[]{0xFFFF1A3C, 0xFFFF5500});
-            btnGrad.setCornerRadius(utils.FixDP(18));
+                    GradientDrawable.Orientation.LEFT_RIGHT, new int[]{0xFFFFE082, 0xFFFFCA28});
+            btnGrad.setCornerRadius(utils.FixDP(16));
 
             Button btnContinue = new Button(context);
             btnContinue.setText("CONTINUE");
-            btnContinue.setTextColor(0xFFFFFFFF);
+            btnContinue.setTextColor(0xFF1A1A1A);
             btnContinue.setAllCaps(true);
             btnContinue.setTextSize(10);
             btnContinue.setTypeface(null, android.graphics.Typeface.BOLD);
@@ -736,10 +720,10 @@ public class Login {
         protected void onSizeChanged(int w, int h, int oldw, int oldh) {
             super.onSizeChanged(w, h, oldw, oldh);
             rect = new RectF(glowOffsetPx, glowOffsetPx, w - glowOffsetPx, h - glowOffsetPx);
-            int red = 0xFFE53935;
-            int darkRed = 0xFF990000;
-            int transparent = Color.argb(0, 0xFF, 0xE5, 0x39);
-            paint.setShader(new SweepGradient(w / 2f, h / 2f, new int[]{transparent, red, darkRed, red, transparent}, new float[]{0f, 0.25f, 0.5f, 0.75f, 1f}));
+            int gold = 0xFFFFE082;
+            int darkGold = 0xFFFFD54F;
+            int transparent = Color.argb(0, 0xFF, 0xE0, 0x82);
+            paint.setShader(new SweepGradient(w / 2f, h / 2f, new int[]{transparent, gold, darkGold, gold, transparent}, new float[]{0f, 0.25f, 0.5f, 0.75f, 1f}));
         }
 
         @Override
@@ -777,9 +761,8 @@ public class Login {
             super.onDraw(canvas);
             int width = getWidth();
             int height = getHeight();
-            if (width == 0 || height == 0) return;
 
-            if (!initialized) {
+            if (!initialized && width > 0 && height > 0) {
                 for (int i = 0; i < PARTICLE_COUNT; i++) {
                     xPositions[i] = (float) (Math.random() * width);
                     yPositions[i] = (float) (Math.random() * height);
@@ -787,7 +770,7 @@ public class Login {
                     speedsX[i] = (float) ((Math.random() - 0.5) * 0.4);
                     radii[i] = (float) (dp(3) + Math.random() * dp(4));
                     float chance = (float) Math.random();
-                    colors[i] = chance > 0.6f ? 0xFFFF1A3C : (chance > 0.3f ? 0xFFFF6600 : 0xFFFFFFFF);
+                    colors[i] = chance > 0.6f ? 0xFFFFE082 : (chance > 0.3f ? 0xFFFFD54F : 0xFFFFFFFF);
                 }
                 initialized = true;
             }

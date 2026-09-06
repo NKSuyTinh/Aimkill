@@ -15,44 +15,27 @@ android {
             abiFilters 'armeabi-v7a'
         }
     }
-    signingConfigs {
-        release {
-            storeFile file('../keystore/release.jks')
-            storePassword 'aimkill123'
-            keyAlias 'aimkill'
-            keyPassword 'aimkill123'
-            v1SigningEnabled true
-            v2SigningEnabled true
-        }
-    }
     buildTypes {
         release {
-            signingConfig signingConfigs.release
             shrinkResources false
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         debug {
-            signingConfig signingConfigs.release
             shrinkResources false
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
-    // externalNativeBuild {
-    //     ndkBuild {
-    //         path file('src/main/jni/Android.mk')
-    //     }
-    // }
-    // ndkVersion '27.0.12077973'
+    externalNativeBuild {
+        ndkBuild {
+            path file('src/main/jni/Android.mk')
+        }
+    }
+    ndkVersion '21.0.6113669'
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
-    }
-    applicationVariants.all { variant ->
-        variant.outputs.all {
-            outputFileName = "Onyx Aimkill.apk"
-        }
     }
 }
 

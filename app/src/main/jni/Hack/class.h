@@ -48,8 +48,6 @@ Il2CppGetMethodOffset("Assembly-CSharp.dll","COW","GameFacade","CurrentGameSimul
 #define offset_get_main (uintptr_t) Il2CppGetMethodOffset(OBFUSCATE("UnityEngine.CoreModule.dll"), OBFUSCATE("UnityEngine"), OBFUSCATE("Camera"), OBFUSCATE("get_main"), 0)
 
 #define offset_WorldToScreenPoint (uintptr_t) Il2CppGetMethodOffset(OBFUSCATE("UnityEngine.CoreModule.dll"), OBFUSCATE("UnityEngine"), OBFUSCATE("Camera"), OBFUSCATE("WorldToScreenPoint"), 1)
-#define offset_Screen_get_width (uintptr_t) Il2CppGetMethodOffset(OBFUSCATE("UnityEngine.CoreModule.dll"), OBFUSCATE("UnityEngine"), OBFUSCATE("Screen"), OBFUSCATE("get_width"), 0)
-#define offset_Screen_get_height (uintptr_t) Il2CppGetMethodOffset(OBFUSCATE("UnityEngine.CoreModule.dll"), OBFUSCATE("UnityEngine"), OBFUSCATE("Screen"), OBFUSCATE("get_height"), 0)
 
 
 #define offset_get_forward (uintptr_t) Il2CppGetMethodOffset(OBFUSCATE("UnityEngine.CoreModule.dll"), OBFUSCATE("UnityEngine"), OBFUSCATE("Transform"), OBFUSCATE("get_forward"), 0)
@@ -145,8 +143,6 @@ Il2CppGetMethodOffset("Assembly-CSharp.dll","COW","GameFacade","CurrentGameSimul
 
 
 #define offset_ShowTeammateTips (uintptr_t) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW"), OBFUSCATE("UIInGameScene"), OBFUSCATE("ShowCenterUpTeammateTips"), 2)
-
-#define offset_ShowCreditPopup (uintptr_t) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW"), OBFUSCATE("UIInGameScene"), OBFUSCATE("ShowCreditBehaviorPopupMessage"), 1)
 
 
 #define offset_JumpBtnCtrl (uintptr_t) Il2CppGetFieldOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW"), OBFUSCATE("UIInGameScene"), OBFUSCATE("m_JumpBtnCtrl"))
@@ -318,7 +314,6 @@ void *GKHECDLGAJA(void *pthis, void* a1)
 static Vector3 Transform_INTERNAL_GetPosition(void *player)
 {
     Vector3 out = Vector3::Zero();
-    if (!player || !offset_Transform_INTERNAL_GetPosition) return out;
     void (*_Transform_INTERNAL_GetPosition)(void *transform, Vector3 * out) = (void (*)(void *, Vector3 *))offset_Transform_INTERNAL_GetPosition;
     _Transform_INTERNAL_GetPosition(player, &out);
     return out;
@@ -327,14 +322,12 @@ static Vector3 Transform_INTERNAL_GetPosition(void *player)
 //#define offset_Component_GetTransform (uintptr_t) Il2CppGetMethodOffset(OBFUSCATE("UnityEngine.CoreModule.dll"), OBFUSCATE("UnityEngine"), OBFUSCATE("Component"), OBFUSCATE("get_transform"), 0)
 static void *Component_get_transform(void *player)
 {
-    if (!player || !offset_Component_GetTransform) return nullptr;
     void *(*_Component_GetTransform)(void *nullo) = (void *(*)(void *))offset_Component_GetTransform;
     return _Component_GetTransform(player);
 }
 
 //#define offset_HeadTF2 (uintptr_t) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player"), OBFUSCATE("GetHeadTF"), 0)
 static void *GetHeadTF(void* player) {
-    if (!player || !offset_HeadTF2) return nullptr;
     void *(*_GetHeadTF)(void *_this) = (void *(*)(void *))offset_HeadTF2;
     return _GetHeadTF(player);
 }
@@ -350,7 +343,6 @@ Vector3 GetHeadPosition(void* player) {
 
 //#define offset_get_main (uintptr_t) Il2CppGetMethodOffset(OBFUSCATE("UnityEngine.CoreModule.dll"), OBFUSCATE("UnityEngine"), OBFUSCATE("Camera"), OBFUSCATE("get_main"), 0)
 static void *get_main() {
-    if (!offset_get_main) return nullptr;
     void *(*nget_main)(void *Instance) = (void *(*)(void *))offset_get_main;
     return nget_main(nullptr);
 }
@@ -358,37 +350,21 @@ static void *get_main() {
 //#define offset_WorldToScreenPoint (uintptr_t) Il2CppGetMethodOffset(OBFUSCATE("UnityEngine.CoreModule.dll"), OBFUSCATE("UnityEngine"), OBFUSCATE("Camera"), OBFUSCATE("WorldToScreenPoint"), 1)
 Vector3 WorldToScreenPoint(Vector3 pos) {
     auto main = get_main();
-    if (main && offset_WorldToScreenPoint) {
+    if (main) {
         auto Camera_WorldToScreenPoint = (Vector3 (*)(void *, Vector3))offset_WorldToScreenPoint;
         return Camera_WorldToScreenPoint(main, pos);
     }
     return {0, 0, 0};
 }
 
-static int get_screenWidth() {
-    if (offset_Screen_get_width) {
-        return ((int (*)())offset_Screen_get_width)();
-    }
-    return 0;
-}
-
-static int get_screenHeight() {
-    if (offset_Screen_get_height) {
-        return ((int (*)())offset_Screen_get_height)();
-    }
-    return 0;
-}
-
 //#define offset_get_forward (uintptr_t) Il2CppGetMethodOffset(OBFUSCATE("UnityEngine.CoreModule.dll"), OBFUSCATE("UnityEngine"), OBFUSCATE("Transform"), OBFUSCATE("get_forward"), 0)
 static Vector3 GetForward(void *player) {
-    if (!player || !offset_get_forward) return {0, 0, 0};
     Vector3 (*NGetForward)(void *players) = (Vector3 (*)(void *))offset_get_forward;
     return NGetForward(player);
 }
 
 //#define offset_GetHp (uintptr_t) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player"), OBFUSCATE("get_CurHP"), 0)
 static int GetHp(void *instance) {
-    if (!instance || !offset_GetHp) return 0;
     return ((int (*)(void *)) offset_GetHp)(instance);
 }
 
@@ -492,49 +468,34 @@ static bool get_isVisible(void *player) {
 
 //#define offset_IsLocalTeammate (uintptr_t) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player"), OBFUSCATE("IsLocalTeammate"), 1)
 static bool IsLocalTeammate(void *instance) {
-    if (!instance || !offset_IsLocalTeammate) return false;
     return ((bool (*)(void *)) offset_IsLocalTeammate)(instance);
 }
 
 static Vector3 CameraPosition(void *player)
 {
-    void* mainCam = get_main();
-    if (!mainCam) {
-        if (player) {
-            void* pTf = Component_get_transform(player);
-            if (pTf) return Transform_INTERNAL_GetPosition(pTf);
-        }
-        return {0, 0, 0};
-    }
-    void* camTf = Component_get_transform(mainCam);
-    if (!camTf) return {0, 0, 0};
-    return Transform_INTERNAL_GetPosition(camTf);
+    return Transform_INTERNAL_GetPosition(Component_get_transform(get_main()));
 }
 
 //#define offset_TransformNode (uintptr_t) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("GCommon"), OBFUSCATE("TransformNode"), OBFUSCATE("get_transform"), 0)
 void* TransformNode(void *_this)
 {
-    if (!_this || !offset_TransformNode) return nullptr;
     return ((void* (*)(void *))offset_TransformNode)(_this);
 }
 
 //#define offset_Curent_Match (uintptr_t) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW"), OBFUSCATE("GameFacade"), OBFUSCATE("CurrentMatch"), 0)
 static void* Current_Match() {
-    if (!offset_Curent_Match) return nullptr;
     using MatchFn = void*(*)(void*);
     return ((MatchFn)offset_Curent_Match)(nullptr);
 }
 
 //#define offset_Current_Local_Player (uintptr_t) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW"), OBFUSCATE("GameFacade"), OBFUSCATE("CurrentLocalPlayer"), 0)
 static void *Current_Local_Player() {
-    if (!offset_Current_Local_Player) return nullptr;
     void *(*_Local_Player)(void *players) = (void *(*)(void *))offset_Current_Local_Player;
     return _Local_Player(NULL);
 }
 
 //#define offset_get_isVisibleMoita (uintptr_t) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player"), OBFUSCATE("IsStreamerVisible"), 0)
 static bool IsStreamerVisible(void *player) {
-    if (!player || !offset_get_isVisibleMoita) return false;
     bool (*_IsStreamerVisible)(void *players) = (bool (*)(void *))offset_get_isVisibleMoita;
     return _IsStreamerVisible(player);
 }
@@ -649,23 +610,6 @@ static void* CurrentInGameUIScene() {
     using fnCurrentUIScene = void* (*)();
     auto _CurrentUIScene = reinterpret_cast<fnCurrentUIScene>(m_currentUi);
     return _CurrentUIScene();
-}
-
-static void* CurrentUIScene() {
-    return CurrentInGameUIScene();
-}
-
-static void* GetUIInGameScene() {
-    return CurrentInGameUIScene();
-}
-
-static void ShowCreditPopup(monoString *message) {
-    if (offset_ShowCreditPopup == 0) return;
-    void (*_Show)(void *, monoString *) = (void (*)(void *, monoString *))(offset_ShowCreditPopup);
-    void *ui = CurrentInGameUIScene();
-    if (ui != nullptr) {
-        _Show(ui, message);
-    }
 }
 
 
@@ -785,18 +729,10 @@ static void ShowAssistantText(void* uiInstance, monoString* playerName, monoStri
     }
 }
 
-static void AddTeammateHud(void *ui, monoString *nick, monoString *grup) {
-    ShowAssistantText(ui, nick, grup);
-}
-
-static monoString *U3DStrFormat(float distance, int hp) {
-    char buffer[128] = {0};
-    sprintf(buffer, " WonderLand Store | HP: %d | Distance: %.f M", hp, distance);
-    return U3DStr(buffer);
-}
-
 static monoString *U3DStrFormat(float distance, float vida) {
-    return U3DStrFormat(distance, (int)vida);
+    char buffer[128] = {0};
+    sprintf(buffer, "[PHX CORP] distance: %.2fm", distance);
+    return U3DStr(buffer);
 }
 
 //#define _MainCameraTransform (uintptr_t) Il2CppGetFieldOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player"), OBFUSCATE("MainCameraTransform"))

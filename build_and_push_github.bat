@@ -40,10 +40,12 @@ if %ERRORLEVEL% neq 0 (
 :: 2. Cau hinh Remote voi Token PAT
 echo [*] Dang dong bo Remote GitHub voi tai khoan NKSuyTinh...
 git remote set-url origin https://%TOKEN%@github.com/%OWNER%/%REPO%.git
+git config user.name "NKSuyTinh"
+git config user.email "namkhanh@aimkill.dev"
 
 :: 3. Stage cac file ma nguon (toi uu khong day file rac / cache)
 echo [*] Dang kiem tra va chuan bi ma nguon...
-git add .github app keystore .gitignore scripts build_and_push_github.bat push_to_github.bat
+git add .github app keystore .gitignore scripts build_and_push_github.bat push_to_github.bat settings.gradle build.gradle gradlew gradlew.bat gradle build_apk.bat
 
 :: 4. Kiem tra xem co thay doi can commit khong
 git diff --cached --quiet

@@ -254,33 +254,30 @@ public:
 
 
 
-    void DrawVerticalHealthBar(Vector2 screenPos, float boxHeight, float maxHealth, float currentHealth) {
-        float barWidth = 5.0f;
-        float borderThickness = 1.0f;
-
-
+    void DrawSimpleHealthBar(Vector2 screenPos, float boxHeight, float maxHealth, float currentHealth) {
+        float barWidth = 4.0f;
         currentHealth = std::max(0.0f, std::min(currentHealth, maxHealth));
-
-
         float healthPercentage = currentHealth / maxHealth;
-
-
         float filledHeight = boxHeight * healthPercentage;
 
+        // Simple dark background
+        DrawFilledRectHP(Color(20, 20, 20, 180), Rect(screenPos.X, screenPos.Y, barWidth, boxHeight));
 
-        DrawBox(Color(0, 0, 0, 255), 0, Rect(screenPos.X, screenPos.Y, barWidth, boxHeight));
-
-
+        // Simple health fill
         Color fillColor = (healthPercentage > 0.6f) ? Color(0, 255, 0, 255) :
-                          (healthPercentage > 0.4f) ? Color(255, 255, 0, 255) :
+                          (healthPercentage > 0.3f) ? Color(255, 255, 0, 255) :
                           Color(255, 0, 0, 255);
 
-        DrawBox(fillColor, 0, Rect(
-                screenPos.X + borderThickness,
+        DrawFilledRectHP(fillColor, Rect(
+                screenPos.X,
                 screenPos.Y + boxHeight - filledHeight,
-                barWidth - 2.0f * borderThickness,
+                barWidth,
                 filledHeight
         ));
+    }
+
+    void DrawVerticalHealthBar(Vector2 screenPos, float boxHeight, float maxHealth, float currentHealth) {
+        DrawSimpleHealthBar(screenPos, boxHeight, maxHealth, currentHealth);
     }
 
 

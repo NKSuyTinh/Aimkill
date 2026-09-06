@@ -92,3 +92,6 @@ lint/tmp/
 req.txt
 buildlog.txt
 github_token.txt
+AIMKILL/
+app/src/main/obj/
+app/src/main/libs/

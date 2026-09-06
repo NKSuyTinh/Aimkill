@@ -6,70 +6,68 @@ package com.terminalx999;
 import android.content.Context;
 import android.os.Build;
 import android.provider.Settings;
+
 import org.json.JSONObject;
 
-import java.io.BufferedReader;
-import java.io.DataOutputStream;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.TreeMap;
-import java.util.UUID;
+import java.util.*;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
 public class SenniAuth {
-    public static final String API_URL = "https://txhauth.store/verify.php";
-    public static final String OWNER = "namkhanhiusenni";
-    public static final String API_NAME = "Aimkill";
-    public static final String API_SECRET = "64c198aee174707380d4123b6b1170bc0b4893a7bc088f48c26a5ee24e8a5076";
+    private static final String API_URL = "https://txhauth.store/verify.php";
+    private static final String OWNER = "namkhanhiusenni";
+    private static final String API_NAME = "Aimkill";
+    private static final String API_SECRET = "64c198aee174707380d4123b6b1170bc0b4893a7bc088f48c26a5ee24e8a5076";
 
     public static class VerifyResult {
         public boolean valid;
         public String message;
         public long expiry;
-        public String expiryFormatted;
+        public String expiryStr;
         public String hwid;
-        public String rawOutput;
+        public String rawResponse;
 
-        public VerifyResult(boolean valid, String message, long expiry, String expiryFormatted, String hwid, String rawOutput) {
+        public VerifyResult(boolean valid, String message, long expiry, String expiryStr, String hwid, String rawResponse) {
             this.valid = valid;
             this.message = message;
             this.expiry = expiry;
-            this.expiryFormatted = expiryFormatted;
+            this.expiryStr = expiryStr;
             this.hwid = hwid;
-            this.rawOutput = rawOutput;
+            this.rawResponse = rawResponse;
         }
     }
 
-    public static String getHWID(Context ctx) {
-        if (ctx != null) {
+    public static String getHWID(Context context) {
+        if (context != null) {
             try {
-                String androidId = Settings.Secure.getString(
-                        ctx.getContentResolver(), Settings.Secure.ANDROID_ID);
+                String androidId = Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ANDROID_ID);
                 if (androidId != null && !androidId.trim().isEmpty()) {
                     return androidId.trim();
                 }
             } catch (Exception ignored) {}
         }
         try {
+            String hw = HWID.getHWID();
+            if (hw != null && !hw.trim().isEmpty()) return hw.trim();
+        } catch (Exception ignored) {}
+        try {
             Process p = Runtime.getRuntime().exec("wmic csproduct get uuid");
             BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
             br.readLine(); br.readLine();
-            String line = br.readLine();
-            if (line != null && !line.trim().isEmpty()) return line.trim();
+            String res = br.readLine();
+            if (res != null && !res.trim().isEmpty()) return res.trim();
         } catch (Exception ignored) {}
-        String envComp = System.getenv("COMPUTERNAME");
-        return envComp != null ? envComp : "ANDROID_" + Build.ID;
+        try {
+            String name = System.getenv("COMPUTERNAME");
+            if (name != null && !name.trim().isEmpty()) return name.trim();
+        } catch (Exception ignored) {}
+        return "ANDROID_" + Build.BOARD + "_" + Build.SERIAL;
     }
 
     public static String getHWID() {
@@ -77,24 +75,24 @@ public class SenniAuth {
     }
 
     private static String computeHMAC(Map<String, String> params, String secret) throws Exception {
-        StringBuilder canonical = new StringBuilder();
+        List<String> parts = new ArrayList<>();
         for (Map.Entry<String, String> entry : params.entrySet()) {
-            if (canonical.length() != 0) canonical.append('&');
-            canonical.append(entry.getKey()).append('=').append(URLEncoder.encode(entry.getValue(), "UTF-8"));
+            parts.add(entry.getKey() + "=" + URLEncoder.encode(entry.getValue(), "UTF-8"));
         }
+        String canonical = String.join("&", parts);
 
         Mac mac = Mac.getInstance("HmacSHA256");
         SecretKeySpec keySpec = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
         mac.init(keySpec);
-        byte[] hash = mac.doFinal(canonical.toString().getBytes(StandardCharsets.UTF_8));
+        byte[] hash = mac.doFinal(canonical.getBytes(StandardCharsets.UTF_8));
         StringBuilder hex = new StringBuilder();
         for (byte b : hash) hex.append(String.format("%02x", b));
         return hex.toString();
     }
 
-    public static VerifyResult verify(Context ctx, String key) {
+    public static VerifyResult verify(Context context, String key) {
         try {
-            String hwid = getHWID(ctx);
+            String hwid = getHWID(context);
             String timestamp = String.valueOf(System.currentTimeMillis() / 1000L);
             String nonce = UUID.randomUUID().toString().replace("-", "");
 
@@ -123,28 +121,25 @@ public class SenniAuth {
             conn.setRequestMethod("POST");
             conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
             conn.setRequestProperty("Content-Length", String.valueOf(postDataBytes.length));
-            conn.setRequestProperty("User-Agent", "SenniCuteAndroidClient/1.0");
             conn.setDoOutput(true);
             conn.setConnectTimeout(8000);
             conn.setReadTimeout(8000);
 
             try (DataOutputStream wr = new DataOutputStream(conn.getOutputStream())) {
                 wr.write(postDataBytes);
-                wr.flush();
             }
 
             InputStream is = conn.getResponseCode() >= 400 ? conn.getErrorStream() : conn.getInputStream();
             BufferedReader in = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
-            String line;
-            StringBuilder res = new StringBuilder();
+            String line; StringBuilder res = new StringBuilder();
             while ((line = in.readLine()) != null) res.append(line);
             in.close();
 
             String output = res.toString();
-            boolean isValid = output.contains("\"valid\": true") || output.contains("\"valid\":true");
-            String msg = isValid ? "Xác thực bản quyền thành công 🌸!" : "Key không hợp lệ!";
+            boolean isValid = false;
+            String msg = "Không nhận được phản hồi hợp lệ từ máy chủ";
             long expiry = 0L;
-            String expiryStr = "";
+            String expiryStr = "Lifetime";
 
             try {
                 JSONObject json = new JSONObject(output);
@@ -152,14 +147,19 @@ public class SenniAuth {
                 if (json.has("message")) msg = json.getString("message");
                 if (json.has("expiry")) {
                     expiry = json.optLong("expiry", 0L);
-                    if (expiry > 2000000000L) {
+                    if (expiry > 2000000000L || expiry == 0L) {
                         expiryStr = "Lifetime";
-                    } else if (expiry > 0) {
+                    } else if (expiry > 0L) {
                         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US);
                         expiryStr = sdf.format(new Date(expiry * 1000L));
                     }
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+                if (output.contains("\"valid\": true") || output.contains("\"valid\":true")) {
+                    isValid = true;
+                    msg = "Xác thực bản quyền thành công 🌸!";
+                }
+            }
 
             return new VerifyResult(isValid, msg, expiry, expiryStr, hwid, output);
         } catch (Exception e) {
@@ -169,6 +169,11 @@ public class SenniAuth {
 
     public static boolean license(String key) {
         VerifyResult res = verify(null, key);
+        return res.valid;
+    }
+
+    public static boolean license(Context context, String key) {
+        VerifyResult res = verify(context, key);
         return res.valid;
     }
 }

@@ -1,3 +1,2 @@
-rootProject.name = 'NX_AIMKILL'
+rootProject.name = "Onyx"
 include ':app'
-

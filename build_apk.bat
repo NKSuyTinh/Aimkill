@@ -1,14 +1,25 @@
 @echo off
 setlocal
-cd /d %~dp0
-set JAVA_HOME=C:\Program Files\Java\jdk-25.0.2
+cd /d "%~dp0"
+
+:: Map virtual drive X: to bypass space issues in NDK path
+subst X: /d >nul 2>&1
+subst X: "%~dp0" >nul 2>&1
+if exist X:\ (
+    cd /d X:\
+)
+
+set "JAVA_HOME=C:\Program Files\Android\Android Studio\jre"
+if not exist "%JAVA_HOME%\bin\java.exe" (
+    set "JAVA_HOME=C:\Program Files\Android\jdk\jdk-8.0.302.8-hotspot\jdk8u302-b08"
+)
 set PATH=%JAVA_HOME%\bin;%PATH%
-title TX999 APK Builder
+title Onyx APK Builder
 
 :menu
 cls
 echo ========================================
-echo        TX999 APK BUILD SYSTEM
+echo        ONYX APK BUILD SYSTEM
 echo ========================================
 echo.
 echo [1] Build Debug APK (Standard)
@@ -30,8 +41,6 @@ call gradlew.bat assembleDebug
 if %ERRORLEVEL% equ 0 (
     echo.
     echo [!] Build SUCCESSFUL!
-    copy /y "app\build\outputs\apk\debug\Onyx Aimkill.apk" "Onyx Aimkill.apk" >nul 2>&1
-    echo [*] Output file: Onyx Aimkill.apk
     echo [*] Opening output folder...
     start "" "app\build\outputs\apk\debug\"
 ) else (
@@ -48,8 +57,6 @@ call gradlew.bat assembleRelease
 if %ERRORLEVEL% equ 0 (
     echo.
     echo [!] Build SUCCESSFUL!
-    copy /y "app\build\outputs\apk\release\Onyx Aimkill.apk" "Onyx Aimkill.apk" >nul 2>&1
-    echo [*] Output file: Onyx Aimkill.apk
     echo [*] Opening output folder...
     start "" "app\build\outputs\apk\release\"
 ) else (

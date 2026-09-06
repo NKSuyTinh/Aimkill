@@ -36,6 +36,7 @@ struct PlayerData {
 
     float distance;
     uint64_t playerPtr;
+    char weaponName[64];
 };
 
 struct Response {

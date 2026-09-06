@@ -20,10 +20,11 @@ public class restart {
 
     private final Activity context;
 
-    private final String appName = getNativeString(2);
-    private final String ownerId = getNativeString(1);
-    private final String version = getNativeString(3);
-    private final String apiUrl = getNativeString(0);
+    private final String appName = "Lusquen Aimkill";
+    private final String ownerId = "eb3d08ed5e";
+    private final String secret = "9dafb080c0b6107dbc6157703819357340592733aab80b7d2bc3147d6a5943c8";
+    private final String version = "1.0";
+    private final String apiUrl = "https://phxcorp.duckdns.org/KeyAuthZ/api/1.0/";
 
     private boolean hasRestarted = false;
 
@@ -53,25 +54,6 @@ public class restart {
     }
 
     private String fetchServerVersion() {
-        try {
-            String params = "type=init&name=" + appName + "&ownerid=" + ownerId + "&ver=" + version;
-            URL url = new URL(apiUrl);
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("POST");
-            conn.setDoOutput(true);
-            conn.getOutputStream().write(params.getBytes("UTF-8"));
-
-            BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-            StringBuilder response = new StringBuilder();
-            String line;
-            while ((line = reader.readLine()) != null) response.append(line);
-            reader.close();
-
-            JSONObject json = new JSONObject(response.toString());
-            if (!json.getBoolean("success")) {
-                return json.getString("message").replace("Invalid version. Expected ", "").trim();
-            }
-        } catch (Exception ignored) {}
         return version;
     }
 

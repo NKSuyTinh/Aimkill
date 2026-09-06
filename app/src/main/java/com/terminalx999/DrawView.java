@@ -31,6 +31,14 @@ public class DrawView extends View implements Runnable {
         InitializePaints();
         setFocusableInTouchMode(false);
         setBackgroundColor(0);
+        setSystemUiVisibility(
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                | View.SYSTEM_UI_FLAG_FULLSCREEN
+                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+        );
         time = new Date();
         sleepTime = (long)(1000 / FPS);
         mThread = new Thread(this);
@@ -46,10 +54,6 @@ public class DrawView extends View implements Runnable {
             time.setTime(System.currentTimeMillis());
             Menu.OnDrawLoad(this, canvas);
         }
-    }
-
-    public void DrawWatermarkOverlay(Canvas canvas) {
-        // Disabled: Replaced by native in-game credit text
     }
 
     @Override
@@ -151,7 +155,7 @@ public class DrawView extends View implements Runnable {
         Paint boldPaint = new Paint(mTextPaint);
         boldPaint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
         boldPaint.setFakeBoldText(true);
-        boldPaint.setStyle(Paint.Style.FILL); // cleaner than stroke for UI
+        boldPaint.setStyle(Paint.Style.FILL);
         boldPaint.setColor(Color.rgb(r, g, b));
         boldPaint.setAlpha(a);
         boldPaint.setTextSize(size);
@@ -373,7 +377,6 @@ public class DrawView extends View implements Runnable {
         float rectX = posX - (totalW / 2);
         float rectY = posY - totalH;
 
-        // Draw Outer Black Card
         mFilledPaint.setColor(Color.BLACK);
         mFilledPaint.setAlpha(160);
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
@@ -385,7 +388,6 @@ public class DrawView extends View implements Runnable {
         float currentX = rectX + paddingH;
         float textBaseline = rectY + totalH - fm.descent - (paddingV / 2.5f);
 
-        // Draw Name
         if (hasName) {
             mTextPaint.setColor(Color.WHITE);
             mTextPaint.setTextAlign(Paint.Align.LEFT);
@@ -393,7 +395,6 @@ public class DrawView extends View implements Runnable {
             currentX += nameW + separation;
         }
 
-        // Draw Nested Red Card for Distance
         if (hasDist) {
             float redCardW = distW + 8;
             float redCardH = textH + 2;
