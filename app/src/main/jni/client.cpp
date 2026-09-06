@@ -585,10 +585,6 @@ case 1080:
             SendFeatuere(5659, pMemoryTools.flyx40);
             break;
 
-        case 1051:
-            SendFeatuere(1051, (value == 1));
-            break;
-
         case 1060:
             MasterBool.speedext = (value == 1);
             SendFeatuere(1060, MasterBool.speedext);
