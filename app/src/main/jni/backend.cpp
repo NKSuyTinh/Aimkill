@@ -2146,6 +2146,7 @@ void StartAimKillSend(void* ClosestEnemy) {
         float dy = hitPos.Y - curFirePos.Y;
         float dz = hitPos.Z - curFirePos.Z;
         float distReal = sqrtf(dx * dx + dy * dy + dz * dz);
+        float dist = distReal;
         Vector3 direction = {0, 0, 0};
         if (distReal > 0.0001f) {
             float inv = 1.0f / distReal;
