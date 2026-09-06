@@ -55,6 +55,8 @@ struct {
     bool autoGlider = false;
     bool infinityFly = false;
     bool ghoston = false;
+    bool DiveKill = false;
+    bool downplayerV2 = false;
 } MasterBool;
 
 struct {
@@ -79,6 +81,8 @@ struct {
     float lodaspeed = 0.0f;
     bool TargetAll = false;
     bool divekillnew = false;
+    bool DiveKill = false;
+    bool downplayerV2 = false;
 } pAimbotPlayer;
 
 struct {
@@ -146,6 +150,8 @@ Java_com_terminalx999_Menu_Functions(JNIEnv *env, jclass clazz) {
     widget.Switch(OBFUSCATE("AIMKILL BODY"), 1052);
     widget.Switch(OBFUSCATE("SAFE AIMKILL"), 5661);
     widget.Switch(OBFUSCATE("REAL AIMKILL V2"), 5662);
+    widget.SwitchWithCheckbox(OBFUSCATE("DIVE KILL"), 5663, 56630);
+    widget.SwitchWithCheckbox(OBFUSCATE("DOWN KILL V2"), 5664, 56640);
     widget.Switch(OBFUSCATE("AUTO SWITCH SEND"), 106);
     widget.Switch(OBFUSCATE("AUTO SWITCH NORMAL"), 508);
     widget.Switch(OBFUSCATE("COVER ELIMINATION"), 107);
@@ -274,6 +280,22 @@ Java_com_terminalx999_Menu_ChangesID(JNIEnv *env, jclass clazz, jint id, jint va
         case 5662:
             pAimbotPlayer.RealAimkillV2 = (value == 1);
             SendFeatuere(5662, pAimbotPlayer.RealAimkillV2);
+            break;
+
+        case 5663:
+            MasterBool.DiveKill = (value == 1);
+            pAimbotPlayer.DiveKill = (value == 1);
+            SendFeatuere(5663, pAimbotPlayer.DiveKill);
+            break;
+
+        case 5664:
+            MasterBool.downplayerV2 = (value == 1);
+            pAimbotPlayer.downplayerV2 = (value == 1);
+            SendFeatuere(5664, pAimbotPlayer.downplayerV2);
+            break;
+
+        case 56630:
+        case 56640:
             break;
 
         case 106:

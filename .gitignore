@@ -88,3 +88,7 @@ lint/tmp/
 
 # Android Profiling
 *.hprof
+# Temporary notes
+req.txt
+buildlog.txt
+github_token.txt

@@ -199,6 +199,10 @@ struct {
 
     bool downkillv2 = false;
 
+    bool DiveKill = false;
+
+    bool downplayerV2 = false;
+
     bool flyexploit = false;
 
     bool ghostHack = false;
@@ -2734,6 +2738,18 @@ void *CreateServer(void *) {
 
                         response.Success = true;
 
+                    } else if (request.Mode == 5663) {
+
+                        MasterBool.DiveKill = request.boolean;
+
+                        response.Success = true;
+
+                    } else if (request.Mode == 5664) {
+
+                        MasterBool.downplayerV2 = request.boolean;
+
+                        response.Success = true;
+
                     } else if (request.Mode == 5001) {
 
                         MasterBool.snapfly = request.boolean;
@@ -3816,12 +3832,169 @@ bool DownEnemySnap(void *enemy)
 
 }
 
+////////////////////////////////////////////////////////////////////////////
+// DOWN AIMKILL V2 — CHÌM XUỐNG ĐẤT 3M (HEAD + ROOT BONE)
+// Ghi đè trực tiếp vị trí world (+0x60) vào bone matrix IL2CPP
+////////////////////////////////////////////////////////////////////////////
 
+namespace DownPlayer {
 
+    bool    active      = false;
+    Vector3 originalPos = {0, 0, 0};
+    bool    firstTime   = true;
 
+    void Update() {
 
+        void* lp = Current_Local_Player();
+        if (!lp) { active = false; return; }
 
+        void* headBone = *(void**)((uintptr_t)lp + _HeadTF);
+        if (!headBone) return;
 
+        void* t = *(void**)((uintptr_t)headBone + 0x8);
+        if (!t) return;
+        void* o = *(void**)((uintptr_t)t + 0x8);
+        if (!o) return;
+        void* matrix = *(void**)((uintptr_t)o + 0x20);
+        if (!matrix) return;
+
+        Vector3 current = *(Vector3*)((uintptr_t)matrix + 0x60);
+
+        if (MasterBool.DiveKill) {
+
+            if (!active || firstTime) {
+                originalPos = current;
+                active      = true;
+                firstTime   = false;
+            }
+
+            Vector3 underground = current;
+            underground.Y -= 3.0f;
+
+            void* pesBone = *(void**)((uintptr_t)lp + _RootTF);
+            if (!pesBone) return;
+            void* pesT = *(void**)((uintptr_t)pesBone + 0x8);
+            if (!pesT) return;
+            void* pesO = *(void**)((uintptr_t)pesT + 0x8);
+            if (!pesO) return;
+            void* pesMatrix = *(void**)((uintptr_t)pesO + 0x20);
+            if (!pesMatrix) return;
+
+            *(Vector3*)((uintptr_t)pesMatrix + 0x60) = underground;
+            *(Vector3*)((uintptr_t)matrix    + 0x60) = underground;
+
+        } else {
+
+            if (active) {
+                void* pesBone = *(void**)((uintptr_t)lp + _RootTF);
+                if (pesBone) {
+                    void* pesT = *(void**)((uintptr_t)pesBone + 0x8);
+                    if (pesT) {
+                        void* pesO = *(void**)((uintptr_t)pesT + 0x8);
+                        if (pesO) {
+                            void* pesMatrix = *(void**)((uintptr_t)pesO + 0x20);
+                            if (pesMatrix) {
+                                *(Vector3*)((uintptr_t)pesMatrix + 0x60) = originalPos;
+                            }
+                        }
+                    }
+                }
+                *(Vector3*)((uintptr_t)matrix + 0x60) = originalPos;
+                active    = false;
+                firstTime = true;
+            }
+        }
+    }
+}
+
+namespace DownEnemy {
+
+    bool    active      = false;
+    Vector3 originalPos = {0, 0, 0};
+    void*   lastEnemy   = nullptr;
+
+    void ResetEnemy(void* enemy) {
+        if (!enemy) return;
+
+        void* headBone = *(void**)((uintptr_t)enemy + _HeadTF);
+        if (!headBone) return;
+        void* t = *(void**)((uintptr_t)headBone + 0x8);
+        if (!t) return;
+        void* o = *(void**)((uintptr_t)t + 0x8);
+        if (!o) return;
+        void* matrix = *(void**)((uintptr_t)o + 0x20);
+        if (!matrix) return;
+
+        void* pesBone = *(void**)((uintptr_t)enemy + _RootTF);
+        if (pesBone) {
+            void* pesT = *(void**)((uintptr_t)pesBone + 0x8);
+            if (pesT) {
+                void* pesO = *(void**)((uintptr_t)pesT + 0x8);
+                if (pesO) {
+                    void* pesMatrix = *(void**)((uintptr_t)pesO + 0x20);
+                    if (pesMatrix) {
+                        *(Vector3*)((uintptr_t)pesMatrix + 0x60) = originalPos;
+                    }
+                }
+            }
+        }
+        *(Vector3*)((uintptr_t)matrix + 0x60) = originalPos;
+    }
+
+    void Update() {
+
+        if (!MasterBool.downplayerV2) {
+            if (active && lastEnemy) {
+                ResetEnemy(lastEnemy);
+                active    = false;
+                lastEnemy = nullptr;
+            }
+            return;
+        }
+
+        void* targetEnemy = cachedTarget ? cachedTarget : BestEnemyFind(nullptr);
+        if (!targetEnemy) {
+            targetEnemy = cachedTarget360 ? cachedTarget360 : BestEnemyFind360();
+        }
+        if (!targetEnemy) {
+            if (active && lastEnemy) { ResetEnemy(lastEnemy); }
+            active=false; lastEnemy=nullptr; return;
+        }
+
+        if (lastEnemy && lastEnemy != targetEnemy) {
+            ResetEnemy(lastEnemy);
+            active = false;
+        }
+        lastEnemy = targetEnemy;
+
+        void* headBone = *(void**)((uintptr_t)targetEnemy + _HeadTF);
+        if (!headBone) return;
+        void* t = *(void**)((uintptr_t)headBone + 0x8);
+        if (!t) return;
+        void* o = *(void**)((uintptr_t)t + 0x8);
+        if (!o) return;
+        void* matrix = *(void**)((uintptr_t)o + 0x20);
+        if (!matrix) return;
+        Vector3 current = *(Vector3*)((uintptr_t)matrix + 0x60);
+
+        if (!active) { originalPos = current; active = true; }
+
+        Vector3 underground = current;
+        underground.Y -= 3.0f;
+
+        void* pesBone = *(void**)((uintptr_t)targetEnemy + _RootTF);
+        if (!pesBone) return;
+        void* pesT = *(void**)((uintptr_t)pesBone + 0x8);
+        if (!pesT) return;
+        void* pesO = *(void**)((uintptr_t)pesT + 0x8);
+        if (!pesO) return;
+        void* pesMatrix = *(void**)((uintptr_t)pesO + 0x20);
+        if (!pesMatrix) return;
+
+        *(Vector3*)((uintptr_t)pesMatrix + 0x60) = underground;
+        *(Vector3*)((uintptr_t)matrix    + 0x60) = underground;
+    }
+}
 
 
 void AllInOneDownKill(void *ClosestEnemy) {
@@ -4412,6 +4585,7 @@ static void SafeAimkillRecordPacketSent() {
 // ======================================================================
 
 static bool (*original_WeaponFire)(void* weapon, COW_GamePlay_MADMMIICBNN_o *hitInfo) = nullptr;
+extern bool (*NoBUlletTractOriginal)(void* weapon, COW_GamePlay_MADMMIICBNN_o *hitInfo);
 
 
 
@@ -4747,7 +4921,7 @@ void StartRealAimkill(void* ClosestEnemy) {
 }
 
 // ======================================================================
-// REAL AIMKILL V2 — Throttled packet-based kill method
+// REAL AIMKILL V2 — 3x Multi-kill per tick + direct HitInfo fill pipeline
 // ======================================================================
 
 static bool g_inAimkillV2 = false;
@@ -4759,95 +4933,96 @@ extern bool (*NoBUlletTractOriginal)(void* weapon, COW_GamePlay_MADMMIICBNN_o *h
 void FastFireMaxTimer();
 
 void StartRealAimkillV2(void* ClosestEnemy) {
+
     if (!(MasterBool.RealAimkillV2 || MasterBool.TargetAll)) return;
-    if (MasterBool.Aimkilltpv2) return;
     if (!InActiveMatch()) return;
     if (g_inAimkillV2) return;
-
     g_inAimkillV2 = true;
 
     void* local = Current_Local_Player();
-    if (!local || IsDieing(local)) { g_inAimkillV2 = false; return; }
-
-    void* weapon = GetWeaponOnHand(local);
-    if (!weapon) { g_inAimkillV2 = false; return; }
-
-    // Force No Reload (Packet Suppression Bypass)
-    void* attrs = *(void**)((uintptr_t)local + _playerAttributes);
-    if (attrs) *(bool*)((uintptr_t)attrs + offset_NoReload) = true;
-
-    // Get current match instance
-    if (!_GameFacade) { g_inAimkillV2 = false; return; }
-    void* matchGame = *(void**)((uintptr_t)_GameFacade + _StaticClass);
-    if (!matchGame) { g_inAimkillV2 = false; return; }
-    void* classMatchGame = *(void**)((uintptr_t)matchGame + _MatchGame);
-    if (!classMatchGame) { g_inAimkillV2 = false; return; }
-    void* current_match = *(void**)((uintptr_t)classMatchGame + _Match);
-    if (!current_match) { g_inAimkillV2 = false; return; }
-
-    auto players = GetEntities(current_match);
-
-    // ---- Build enemy list (once per batch/match tick) ----
-    if (!g_aimkillV2Initialized || g_aimkillV2CurrentIndex >= (int)g_aimkillV2EnemyList.size()) {
-        g_aimkillV2EnemyList.clear();
-        for (void* enemy : players) {
-            if (!enemy || enemy == local) continue;
-            if (IsDieing(enemy) || GetHp(enemy) <= 0) continue;
-            if (IsLocalTeammate(enemy)) continue;
-            if (!isEnemyInRangeWeapon(local, enemy, weapon)) continue;
-            g_aimkillV2EnemyList.push_back(enemy);
-        }
-        g_aimkillV2CurrentIndex = 0;
-        g_aimkillV2Initialized = true;
-    }
-
-    if (g_aimkillV2EnemyList.empty()) {
-        g_aimkillV2Initialized = false;
+    if (!local || IsDieing(local) || GetHp(local) <= 0) {
         g_inAimkillV2 = false;
         return;
     }
 
-    // ---- Process ONLY ONE enemy per call (Smoothness & Stability) ----
-    if (g_aimkillV2CurrentIndex < (int)g_aimkillV2EnemyList.size()) {
-        void* enemy = g_aimkillV2EnemyList[g_aimkillV2CurrentIndex];
-        g_aimkillV2CurrentIndex++;
+    void* weapon = GetWeaponOnHand(local);
+    if (!weapon) { g_inAimkillV2 = false; return; }
 
-        if (!enemy || IsDieing(enemy) || GetHp(enemy) <= 0) {
-            g_inAimkillV2 = false;
-            return;
-        }
+    void* attrs = *(void**)((uintptr_t)local + _playerAttributes);
+    if (attrs) *(bool*)((uintptr_t)attrs + offset_NoReload) = true;
 
-        // ---- Auto-Pull if Target is Hidden ----
+    void* current_match = Current_Match();
+    if (!current_match) { g_inAimkillV2 = false; return; }
+
+    auto players = GetEntities(current_match);
+    if (players.empty()) { g_inAimkillV2 = false; return; }
+
+    Vector3 localHead = GetHeadPosition(local);
+
+    std::vector<void*> targets;
+    if (ClosestEnemy && !IsDieing(ClosestEnemy)
+                     && GetHp(ClosestEnemy) > 0
+                     && !IsLocalTeammate(ClosestEnemy)) {
+        targets.push_back(ClosestEnemy);
+    }
+
+    std::vector<std::pair<float, void*>> candidates;
+    for (void* enemy : players) {
+        if (!enemy || enemy == local || enemy == ClosestEnemy) continue;
+        if (IsDieing(enemy) || GetHp(enemy) <= 0 || IsLocalTeammate(enemy)) continue;
+        if (!isEnemyInRangeWeapon(local, enemy, weapon)) continue;
+        void* headCollider = get_HeadCollider(enemy);
+        if (!headCollider) continue;
+        Vector3 ePos = GetHeadPosition(enemy);
+        float dx = ePos.X - localHead.X;
+        float dy = ePos.Y - localHead.Y;
+        float dz = ePos.Z - localHead.Z;
+        candidates.push_back({dx*dx + dy*dy + dz*dz, enemy});
+    }
+    if (!candidates.empty()) {
+        std::sort(candidates.begin(), candidates.end(),
+        [](const std::pair<float, void*>& a,
+           const std::pair<float, void*>& b){ return a.first < b.first; });
+        for (auto& c : candidates) targets.push_back(c.second);
+    }
+    if (targets.empty()) { g_inAimkillV2 = false; return; }
+
+    void* hitObjectInfo = *(void**)((uintptr_t)local + _HitObjectInfoWp);
+    if (!hitObjectInfo) { g_inAimkillV2 = false; return; }
+    COW_GamePlay_MADMMIICBNN_o* hitInfo = (COW_GamePlay_MADMMIICBNN_o*)hitObjectInfo;
+
+    int dispatched = 0;
+    for (void* enemy : targets) {
+        if (dispatched >= 3) break;
+        if (!enemy || enemy == local || IsDieing(enemy)
+            || GetHp(enemy) <= 0 || IsLocalTeammate(enemy)) continue;
+
         void* enemyTf = nullptr;
         Vector3 originalPos = {0, 0, 0};
         bool wasPulled = false;
         if (!isVisible_Aimbot(enemy)) {
             wasPulled = AimkillMethodPull(enemy, &enemyTf, &originalPos);
-            if (!wasPulled) {
-                g_inAimkillV2 = false;
-                return;
-            }
+            if (!wasPulled) continue;
         }
 
         void* headCollider = get_HeadCollider(enemy);
         if (!headCollider) {
-            if (wasPulled) AimkillMethodRestore(enemy, enemyTf, originalPos);
-            g_inAimkillV2 = false;
-            return;
+            if (wasPulled && enemyTf && enemy)
+                AimkillMethodRestore(enemy, enemyTf, originalPos);
+            continue;
+        }
+        void* headGO = get_gameObject(headCollider);
+        if (!headGO) {
+            if (wasPulled && enemyTf && enemy)
+                AimkillMethodRestore(enemy, enemyTf, originalPos);
+            continue;
         }
 
-        void* hitObjectInfo = *(void**)((uintptr_t)local + _HitObjectInfoWp);
-        if (!hitObjectInfo) {
-            if (wasPulled) AimkillMethodRestore(enemy, enemyTf, originalPos);
-            g_inAimkillV2 = false;
-            return;
-        }
-
-        Vector3 localHead = GetHeadPosition(local);
-        Vector3 hitPos = GetHeadPosition(enemy);
-        float dx = hitPos.X - localHead.X;
-        float dy = hitPos.Y - localHead.Y;
-        float dz = hitPos.Z - localHead.Z;
+        Vector3 curFirePos = GetHeadPosition(local);
+        Vector3 hitPos     = GetHeadPosition(enemy);
+        float dx = hitPos.X - curFirePos.X;
+        float dy = hitPos.Y - curFirePos.Y;
+        float dz = hitPos.Z - curFirePos.Z;
         float dist = sqrtf(dx*dx + dy*dy + dz*dz);
         Vector3 direction = {0, 0, 0};
         if (dist > 0.0001f) {
@@ -4857,63 +5032,37 @@ void StartRealAimkillV2(void* ClosestEnemy) {
             direction.Z = dz * inv;
         }
 
-        // ---- Calculate realistic damage packet values ----
-        int baseDamage = GetDamage(weapon);
-        if (baseDamage <= 0) baseDamage = 30;
-        int damageToSend = baseDamage * 2;
-        if (damageToSend > 250) damageToSend = 250;
+        int baseDmg = GetDamage(weapon);
+        if (baseDmg <= 0) baseDmg = 50;
+        if (baseDmg > 200) baseDmg = 200;
 
-        COW_GamePlay_MADMMIICBNN_o* hitInfo = (COW_GamePlay_MADMMIICBNN_o*)hitObjectInfo;
-        FillHitInfoDirectly(hitInfo, headCollider, hitPos, localHead, direction, dist, damageToSend);
+        *(void**)((uintptr_t)hitInfo + Hit_GameObject)   = headGO;
+        *(void**)((uintptr_t)hitInfo + Hit_HeadCollider) = headCollider;
+        *(Vector3*)((uintptr_t)hitInfo + Hit_HitLoc)     = hitPos;
+        *(Vector3*)((uintptr_t)hitInfo + Hit_Normal)     = direction;
+        *(Vector3*)((uintptr_t)hitInfo + Hit_RayDir)     = direction;
+        *(Vector3*)((uintptr_t)hitInfo + Hit_StartPos)   = curFirePos;
+        *(Vector3*)((uintptr_t)hitInfo + Hit_OrgStrtPos) = curFirePos;
+        *(int*)((uintptr_t)hitInfo + Hit_Part)           = 1;
+        *(bool*)((uintptr_t)hitInfo + Hit_Ignore)        = false;
+        hitInfo->FFDIOGPKCKF = dist;
+        hitInfo->IHNCAADOAAE = baseDmg;
+
+        if (!wasPulled) GKHECDLGAJA(local, hitObjectInfo);
+        if (!IsFiringPlayer(local)) StartFiring(local, weapon);
         GKHECDLGAJA(local, hitObjectInfo);
+        if (NoBUlletTractOriginal)
+            NoBUlletTractOriginal(weapon, hitInfo);
+        if (ResolveWeaponFireFn() && original_WeaponFire)
+            original_WeaponFire(weapon, hitInfo);
 
-        // ---- Resolve original WeaponFire Hook Fallback ----
-        if (!NoBUlletTractOriginal) {
-            NoBUlletTractOriginal = (bool (*)(void*, COW_GamePlay_MADMMIICBNN_o*))getRealOffset(0x66E999C);
-        }
-        if (!NoBUlletTractOriginal) {
-            if (wasPulled) AimkillMethodRestore(enemy, enemyTf, originalPos);
-            g_inAimkillV2 = false;
-            return;
-        }
+        if (wasPulled && enemyTf && enemy)
+            AimkillMethodRestore(enemy, enemyTf, originalPos);
 
-        // ---- Temporarily remove fire rate delay for burst delivery ----
-        bool oldFast = MasterBool.fastfiremax;
-        bool oldFireScale = MasterBool.fireScaleHack;
-        MasterBool.fastfiremax = true;
-        MasterBool.fireScaleHack = true;
-        FastFireMaxTimer();
-
-        // ---- Enable damage hook override for one-shot ----
-        g_isAimkillShot = true;
-
-        // ---- EXECUTE FIRE PACKET ----
-        StartFiring(local, weapon);
-        NoBUlletTractOriginal(weapon, hitInfo);
-        StopFire(local, weapon);
-
-        // ---- Disable overrides ----
-        g_isAimkillShot = false;
-
-        // ---- Restore normal fire rates ----
-        MasterBool.fastfiremax = oldFast;
-        MasterBool.fireScaleHack = oldFireScale;
-        FastFireMaxTimer();
-
-        // ---- Resync Weapon State (Instant Packet Channel) ----
-        Syns_SwapWeapon_Impl(local, weapon);
-
-        // Restore enemy to original position (Server Anti-Cheat Sync)
-        if (wasPulled) AimkillMethodRestore(enemy, enemyTf, originalPos);
+        dispatched++;
     }
 
-    // ---- Reset iteration state when batch is finished ----
-    if (g_aimkillV2CurrentIndex >= (int)g_aimkillV2EnemyList.size()) {
-        g_aimkillV2Initialized = false;
-        g_aimkillV2EnemyList.clear();
-        g_aimkillV2CurrentIndex = 0;
-    }
-
+    if (dispatched > 0) StopFire(local, weapon);
     g_inAimkillV2 = false;
 }
 
@@ -5645,35 +5794,19 @@ void* BestEnemyFind360()
 
     Vector3 LocalPos = Transform_INTERNAL_GetPosition(LocalTF);
 
-
-
-    // --- SMART PRIORITY LOCK (360) ---
-
-    if (MasterBool.targetLock && lockedEnemy != nullptr) {
-
-        if (!IsDieing(lockedEnemy) && GetHp(lockedEnemy) > 0 && isVisible_Aimbot(lockedEnemy)) {
-
-             return lockedEnemy; // Prioritize Locked Visible Target in 360 mode
-
-        }
-
-    }
-
-
-
     auto players = GetEntities(current_match);
 
     for (auto player: players) {
 
         void* enemy = player;
 
-        if (!enemy || enemy == LocalPlayer)continue;
+        if (!enemy || enemy == LocalPlayer) continue;
 
-        if (IsDieing(enemy))continue;
+        if (IsDieing(enemy)) continue;
 
         if (IsLocalTeammate(enemy)) continue;
 
-        if (GetHp(enemy) <= 0)continue;
+        if (GetHp(enemy) <= 0) continue;
 
         void *HeadTF = TransformNode(*(void**)((uint64_t)enemy + _HeadTF));
 
@@ -5689,7 +5822,11 @@ void* BestEnemyFind360()
 
     if (enemyList.empty()) return nullptr;
 
-    std::sort(enemyList.begin(), enemyList.end(),[](const std::pair<float, void*>& a, const std::pair<float, void*>& b){return a.first < b.first;});
+    std::sort(enemyList.begin(), enemyList.end(),
+
+    [](const std::pair<float, void*>& a,
+
+       const std::pair<float, void*>& b){ return a.first < b.first; });
 
     size_t idx = index % enemyList.size();
 
@@ -6560,6 +6697,12 @@ void hook_UpdateBehavior(void *Player){
         }
     }
 
+    void* localPlayer = Current_Local_Player();
+    if (Player == localPlayer) {
+        DownPlayer::Update();
+        DownEnemy::Update();
+    }
+
 }
 
 
@@ -6918,7 +7061,8 @@ auto elapsed_time_exploit = std::chrono::duration_cast<std::chrono::milliseconds
 
             AutoExecute();
 
-
+            DownPlayer::Update();
+            DownEnemy::Update();
 
             void *LocalPlayer = Current_Local_Player();
 

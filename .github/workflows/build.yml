@@ -7,6 +7,9 @@ on:
     branches: [ main, master ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -14,6 +17,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
       - name: Set up JDK 11
         uses: actions/setup-java@v4
@@ -35,14 +40,14 @@ jobs:
             NDK_DIR=$(find $ANDROID_SDK_ROOT/ndk -maxdepth 1 -mindepth 1 | head -n 1)
           fi
           echo "Using NDK: $NDK_DIR"
-          "$NDK_DIR/ndk-build" -C app/src/main/jni
+          "$NDK_DIR/ndk-build" -j$(nproc) -C app/src/main/jni
           mkdir -p app/src/main/jniLibs/armeabi-v7a
           cp -fv app/src/main/jni/libs/armeabi-v7a/*.so app/src/main/jniLibs/armeabi-v7a/ 2>/dev/null || true
           cp -fv app/src/main/libs/armeabi-v7a/*.so app/src/main/jniLibs/armeabi-v7a/ 2>/dev/null || true
           ls -la app/src/main/jniLibs/armeabi-v7a/
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace
+        run: ./gradlew assembleDebug --stacktrace --no-daemon --parallel
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
@@ -59,5 +64,7 @@ jobs:
           tag_name: v1.0.${{ github.run_number }}
           name: Onyx Aimkill Build #${{ github.run_number }}
           files: app/build/outputs/apk/**/*.apk
+          draft: false
+          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
