@@ -1,12 +1,12 @@
 @echo off
-chcp 65001 >nul
 setlocal enabledelayedexpansion
+chcp 65001 >nul
 cd /d %~dp0
 
-title Build & Push APK len GitHub (NKSuyTinh)
+title Build and Push APK len GitHub (NKSuyTinh)
 
 echo ========================================================================
-echo        HỆ THỐNG BUILD APK TỰ ĐỘNG LÊN GITHUB (NKSuyTinh/Aimkill)
+echo        HE THONG BUILD APK TU DONG LEN GITHUB (NKSuyTinh/Aimkill)
 echo ========================================================================
 echo.
 
@@ -43,7 +43,7 @@ git remote set-url origin https://%TOKEN%@github.com/%OWNER%/%REPO%.git
 
 :: 3. Stage cac file ma nguon (toi uu khong day file rac / cache)
 echo [*] Dang kiem tra va chuan bi ma nguon...
-git add .github app .gitignore scripts
+git add .github app .gitignore scripts build_and_push_github.bat push_to_github.bat
 
 :: 4. Kiem tra xem co thay doi can commit khong
 git diff --cached --quiet
