@@ -15,13 +15,25 @@ android {
             abiFilters 'armeabi-v7a'
         }
     }
+    signingConfigs {
+        release {
+            storeFile file('../keystore/release.jks')
+            storePassword 'aimkill123'
+            keyAlias 'aimkill'
+            keyPassword 'aimkill123'
+            v1SigningEnabled true
+            v2SigningEnabled true
+        }
+    }
     buildTypes {
         release {
+            signingConfig signingConfigs.release
             shrinkResources false
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         debug {
+            signingConfig signingConfigs.release
             shrinkResources false
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'

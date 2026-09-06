@@ -43,7 +43,7 @@ git remote set-url origin https://%TOKEN%@github.com/%OWNER%/%REPO%.git
 
 :: 3. Stage cac file ma nguon (toi uu khong day file rac / cache)
 echo [*] Dang kiem tra va chuan bi ma nguon...
-git add .github app .gitignore scripts build_and_push_github.bat push_to_github.bat
+git add .github app keystore .gitignore scripts build_and_push_github.bat push_to_github.bat
 
 :: 4. Kiem tra xem co thay doi can commit khong
 git diff --cached --quiet

@@ -46,8 +46,8 @@ jobs:
           cp -fv app/src/main/libs/armeabi-v7a/*.so app/src/main/jniLibs/armeabi-v7a/ 2>/dev/null || true
           ls -la app/src/main/jniLibs/armeabi-v7a/
 
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace --no-daemon --parallel
+      - name: Build Signed Release APK
+        run: ./gradlew assembleRelease --stacktrace --no-daemon --parallel
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4

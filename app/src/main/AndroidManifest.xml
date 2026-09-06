@@ -12,6 +12,7 @@
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="Onyx Aimkill"
+        android:extractNativeLibs="true"
         android:supportsRtl="true">
         <meta-data
             android:name="com.google.android.actions"
