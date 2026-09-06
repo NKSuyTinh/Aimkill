@@ -148,6 +148,11 @@ struct {
 
     bool SafeAimkill = false;
     bool SafeSilentAim = false;
+    bool downKillMaxVip = false;
+    bool flyhack = false;
+    bool flyexploit = false;
+    bool Invisible = false;
+    bool noDelay = false;
 
     bool autoSwitchEnabled = false;
 
@@ -168,6 +173,7 @@ struct {
 char lockedEnemyName[128] = {0};
 
 static bool SpeedTimerpatch = false;
+static bool noDelayPatch = false;
 int g_screenWidth, g_screenHeight;
 ElfScanner g_il2cppELF;
 
@@ -503,13 +509,52 @@ void SetFootballState(void* player) {
     *(int *)((uintptr_t)physXData + 0xc) = 8;
 }
 
-void InvisiblePlayer() {
-    if (!InActiveMatch()) return;
-    auto player = Current_Local_Player();
-    if (!player) return;
-    if (IsDieing(player)) return;
-    if (GetHp(player) <= 0) return;
+static const uintptr_t pAddress_new = 0xC4C;
+static const uintptr_t pAddress_Firing = 0x540;
+static const uintptr_t pAddress_IsUseFootball = 0x64ADAB8;
+static const uintptr_t pAddress_TakeDamage = 0x6682648;
 
+void FootBallNew() {
+    void* LOCP = Current_Local_Player(); 
+    if (LOCP == nullptr) return; 
+
+    uint32_t* fbStatePtr = (uint32_t*)((uintptr_t)LOCP + pAddress_new); 
+    bool isFiring = IsFiringPlayer(LOCP) || *(bool*)((uintptr_t)LOCP + pAddress_Firing);
+
+    if (MasterBool.ActivateAll && MasterBool.Invisible) {
+        if (isFiring) {
+            *fbStatePtr = 3; 
+        } else {
+            *fbStatePtr = 1; 
+            static void (*FootBallWala)(void*) = nullptr;
+            if (!FootBallWala) {
+                static uintptr_t off_fb = (uintptr_t)Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player"), OBFUSCATE("IsUseFootball"), 0);
+                if (!off_fb) {
+                    off_fb = getRealOffset(pAddress_IsUseFootball);
+                }
+                FootBallWala = (void (*)(void*))off_fb;
+            }
+            if (FootBallWala) {
+                FootBallWala(LOCP); 
+            }
+        }
+    } else {
+        *fbStatePtr = 3; 
+    }
+}
+
+bool (*orig_CanTakeDamage)(void* _this, void* attacker, void* victim, void* weaponData, const void* method) = nullptr;
+bool hook_CanTakeDamage(void* _this, void* attacker, void* victim, void* weaponData, const void* method) {
+    if (MasterBool.ActivateAll && MasterBool.Invisible) {
+        void* localPlayer = Current_Local_Player();
+        if (victim != nullptr && victim == localPlayer) {
+            return false; 
+        }
+    }
+    if (orig_CanTakeDamage) {
+        return orig_CanTakeDamage(_this, attacker, victim, weaponData, method);
+    }
+    return true;
 }
 
 void SpoofName() {
@@ -677,7 +722,18 @@ void NewEspForUnity31(Response &response) {
 
 }
 
-void FlyExploitSBG(void* localPlayer) {}
+void FlyExploitSBG(void* localPlayer)
+{
+    if (!localPlayer) return;
+    if (!(MasterBool.flyexploit && (MasterBool.enableESP || MasterBool.ActivateAll))) return;
+
+    void *transform = Component_get_transform(localPlayer);
+    if (!transform) return;
+
+    Vector3 pos = Transform_INTERNAL_GetPosition(transform);
+    pos.Y += 0.1f;   // 👈 cứ mỗi tick gọi → Y tăng đều 0.1 mét
+    Transform_set_position(transform, pos);
+}
 
 void unlockMemory(uintptr_t address) {
     uintptr_t pageStart = address & ~(getpagesize() - 1);
@@ -932,12 +988,31 @@ void *CreateServer(void *) {
                         MasterBool.SafeAimkill = request.boolean;
                         response.Success = true;
 
+                    }   else if (request.Mode == 5665) {
+                        MasterBool.flyexploit = request.boolean;
+                        response.Success = true;
+
+                    }   else if (request.Mode == 5666) {
+                        MasterBool.Invisible = request.boolean;
+                        response.Success = true;
+
+                    }   else if (request.Mode == 5667) {
+                        MasterBool.noDelay = request.boolean;
+                        response.Success = true;
+
                     }   else if (request.Mode == 9999) {
                         MasterBool.ActivateAll = request.boolean;
-                        if (!MasterBool.ActivateAll) {
+                        if (request.boolean) {
+                            MasterBool.enableESP = true;
+                        } else {
                             MasterBool.RealAimkillV2 = false;
                             MasterBool.Aimkillsend = false;
                             MasterBool.SafeAimkill = false;
+                            MasterBool.downKillMaxVip = false;
+                            MasterBool.flyhack = false;
+                            MasterBool.flyexploit = false;
+                            MasterBool.Invisible = false;
+                            MasterBool.noDelay = false;
                             MasterBool.Aimkill = false;
                             MasterBool.RealAimkill = false;
                             MasterBool.TargetAll = false;
@@ -964,6 +1039,7 @@ void *CreateServer(void *) {
                             MasterBool.mapateleport = false;
                             MasterBool.resetguest = false;
                             SpeedTimerpatch = false;
+                            noDelayPatch = false;
                         }
                         response.Success = true;
 
@@ -1005,12 +1081,22 @@ void *CreateServer(void *) {
                         response.Success = true;
 
                     } else if(request.Mode == 504) {
-                        MasterBool.downplayerV2 = request.boolean;
-                        MasterBool.downaimkill = request.boolean;
+                        MasterBool.downKillMaxVip  = request.boolean;
+                        MasterBool.downaimkill     = request.boolean;  // giữ cho code cũ không crash (nếu có gọi site)
+                        if (!request.boolean) {
+                            MasterBool.downplayer = false;
+                            MasterBool.flyhack    = false;
+                        }
                         response.Success = true;
 
-                    } else if(request.Mode == 5660) {
-                        MasterBool.DiveKill = request.boolean;
+                    } else if(request.Mode == 5658 || request.Mode == 5660) {
+                        // DOWN KILL / DIVE KILL NEW → thống nhất cùng 1 chế độ MAX VIP
+                        MasterBool.downKillMaxVip  = request.boolean;
+                        if (!request.boolean) {
+                            MasterBool.downplayer  = false;
+                            MasterBool.downaimkill = false;
+                            MasterBool.flyhack     = false;
+                        }
                         response.Success = true;
 
                     }  else if(request.Mode == 505) {
@@ -2849,6 +2935,124 @@ namespace DownEnemy {
     }
 }
 
+// ======================================================================
+//  DOWN KILL MAX VIP (THỐNG NHẤT)
+//  - 1 switch (MasterBool.downKillMaxVip) điều khiển cả local & all enemies
+//  - Local:   -2.5m (lock, save/restore 0-delay khi OFF)
+//  - Enemies: -2.8m (tất cả enemy, lọc teammate/chết/knocked)
+//  - Smooth LERP (không giật / cực mượt) — Lerp 22% xuống, 65% lên
+//  - OFF: restore NGAY LẬP TỨC (không chờ lerp), clear state bộ nhớ
+//  - Tự lấy GetEntities() → không cần tham số ClosestEnemy
+// ======================================================================
+static const float kDownVip_EnemyY    = -2.8f;
+static const float kDownVip_LocalY    = -2.5f;
+static const float kDownVip_LerpDown  =  0.22f;
+static const float kDownVip_LerpUp    =  0.65f;
+
+struct DKV_EnemyState { void* ptr; Vector3 save; Vector3 cur; bool alive; };
+struct DKV_LocalState { bool prev;    Vector3 save; Vector3 cur; };
+
+static std::map<void*, DKV_EnemyState> g_dkvEnemies;
+static DKV_LocalState                   g_dkvLocal = { false, Vector3::Zero(), Vector3::Zero() };
+
+static inline float   dkv_clamp01(float v)               { return v<0?0: v>1?1:v; }
+static inline Vector3 dkv_lerp(const Vector3& a, const Vector3& b, float t) {
+    t = dkv_clamp01(t);
+    return Vector3(a.X+(b.X-a.X)*t, a.Y+(b.Y-a.Y)*t, a.Z+(b.Z-a.Z)*t);
+}
+static inline void*   dkv_match() {
+    if (!_GameFacade) return nullptr;
+    void* MG = *(void**)((uint64_t)_GameFacade + _StaticClass); if (!MG) return nullptr;
+    void* CMG= *(void**)((uint64_t)MG + _MatchGame);            if (!CMG)return nullptr;
+    return *(void**)((uint64_t)CMG+ _Match);
+}
+
+void DownKillMaxVip(void* closestHint = nullptr)
+{
+    void* local = Current_Local_Player(); if (!local) return;
+    void* ltf   = Component_get_transform(local); if (!ltf) return;
+    const bool on = MasterBool.downKillMaxVip;
+
+    // ===== LOCAL =====
+    {
+        Vector3 L = Transform_INTERNAL_GetPosition(ltf);
+        if ( on && !g_dkvLocal.prev) { g_dkvLocal.save = L; g_dkvLocal.cur = L; }
+        if (!on &&  g_dkvLocal.prev) { Transform_set_position(ltf, g_dkvLocal.save); g_dkvLocal = {false,Vector3::Zero(),Vector3::Zero()}; }
+        else if (on) {
+            Vector3 tgt = Vector3(L.X, g_dkvLocal.save.Y + kDownVip_LocalY, L.Z);
+            g_dkvLocal.cur = dkv_lerp(g_dkvLocal.cur, tgt, kDownVip_LerpDown);
+            g_dkvLocal.cur.X = L.X;
+            g_dkvLocal.cur.Z = L.Z;
+            Transform_set_position(ltf, g_dkvLocal.cur);
+            g_dkvLocal.prev = true;
+        } else g_dkvLocal.prev = false;
+    }
+
+    // ===== ALL ENEMIES =====
+    {
+        for (auto& kv : g_dkvEnemies) kv.second.alive = false;
+        void* match = dkv_match();
+        if (!match) match = Current_Match();
+        std::vector<void*> arr;
+        if (match) {
+            arr = GetEntities(match);
+        } else if (closestHint) {
+            arr.push_back(closestHint);
+        }
+        for (void* e : arr) {
+            if (!e || e == local)                         continue;
+            if (IsDieing(e) || GetHp(e) <= 0)             continue;
+            if (IsLocalTeammate(e))                       continue;
+            void* tf = Component_get_transform(e);        if (!tf) continue;
+            Vector3 P  = Transform_INTERNAL_GetPosition(tf);
+
+            auto it = g_dkvEnemies.find(e);
+            if (it == g_dkvEnemies.end()) {
+                DKV_EnemyState s{e, P, P, true};
+                g_dkvEnemies[e] = s;
+                it = g_dkvEnemies.find(e);
+            } else it->second.alive = true;
+            DKV_EnemyState& st = it->second;
+
+            if (on) {
+                if (st.save.X==0 && st.save.Y==0 && st.save.Z==0) { st.save=P; st.cur=P; }
+                Vector3 tgt = Vector3(st.save.X, st.save.Y + kDownVip_EnemyY, st.save.Z);
+
+                float dxz = (P.X-st.save.X)*(P.X-st.save.X) + (P.Z-st.save.Z)*(P.Z-st.save.Z);
+                if (dxz > 0.09f) { // địch chạy > 0.3m → cập nhật X/Z theo realtime (không kẹt kệch)
+                    st.save.X = P.X; st.save.Z = P.Z;
+                    st.cur .X = P.X; st.cur .Z = P.Z;
+                    tgt.X = P.X;      tgt.Z = P.Z;
+                }
+                st.cur = dkv_lerp(st.cur, tgt, kDownVip_LerpDown);
+                Transform_set_position(tf, st.cur);
+            } else {
+                if (st.save.X||st.save.Y||st.save.Z) Transform_set_position(tf, st.save);
+            }
+        }
+        // dọn địch mất (respawn/leave)
+        for (auto it = g_dkvEnemies.begin(); it != g_dkvEnemies.end(); ) {
+            if (!it->second.alive) {
+                if (!on && (it->second.save.X||it->second.save.Y||it->second.save.Z)) {
+                    void* tf = Component_get_transform(it->second.ptr);
+                    if (tf) Transform_set_position(tf, it->second.save);
+                }
+                it = g_dkvEnemies.erase(it);
+            } else ++it;
+        }
+        // OFF cuối cùng → dọn sạch + forced restore
+        if (!on && !g_dkvEnemies.empty()) {
+            for (auto& kv : g_dkvEnemies) {
+                DKV_EnemyState& s = kv.second;
+                if (s.save.X||s.save.Y||s.save.Z) {
+                    void* tf = Component_get_transform(s.ptr);
+                    if (tf) Transform_set_position(tf, s.save);
+                }
+            }
+            g_dkvEnemies.clear();
+        }
+    }
+}
 
 void AESPName()
 
@@ -3000,6 +3204,14 @@ void ApplyFlyMap(void* localPlayer) {
 
 }
 
+// ======================================================================
+//  FastFireMaxTimer()
+//  - 2 mode trong 1 hàm, dùng chung logic (vì đều patch _FixedDeltaTime)
+//  - Priority 1: Fast Fire Max (fastfiremax)   → Δ = 0.20  (bắn cực nhanh, 3x tick bắn/giây)
+//  - Priority 2: Speed Timer / No Delay (noDelay) → Δ = 0.065 (1.5x simulation, 50% nhanh hơn thường)
+//  - Off cả 2: restore về 0.033 (30 tick/giây, giá trị game gốc)
+//  - Flag SpeedTimerpatch / noDelayPatch để CHỈ PATCH KHI CẦN THAY ĐỔI  (tránh crash)
+// ======================================================================
 void FastFireMaxTimer() {
     if (_GameFacade) {
         void *StaticGameFacade = *(void **) ((uint64_t) _GameFacade + _StaticClass);
@@ -3009,34 +3221,40 @@ void FastFireMaxTimer() {
                 void *timeService = *(void **) ((uintptr_t) currentGame + _GameTimer);
                 if (!timeService) return;
 
-                // Priority 1: Fast Fire Max (Rage)
-
-                if (MasterBool.fastfiremax) {
+                // ===== Priority 1: Fast Fire Max (Rage mode) =====
+                if (MasterBool.ActivateAll && MasterBool.fastfiremax) {
                     if (!SpeedTimerpatch) {
+                        // Thay m_FixedDeltaTime 0.033 (gốc) → 0.20 (giả lập 6 tick/s → tăng fire rate 6x)
                         *(float *) ((uintptr_t) timeService + _FixedDeltaTime) = 0.20f;
                         SpeedTimerpatch = true;
-
+                        noDelayPatch    = false; // tắt Speed Timer mode nếu đang bật (tránh conflict)
                     }
-
                     return;
                 }
 
-// Speed Timer removed
-
-                // Reset to Normal if both OFF
-
-                if (SpeedTimerpatch) {
-                    *(float *) ((uintptr_t) timeService + _FixedDeltaTime) = 0.033f;
-                    SpeedTimerpatch = false;
-
+                // ===== Priority 2: SPEED TIMER (No Delay) =====
+                // Giá trị 0.065: ~ 15 tick / giây  →  mọi hành vi game (chạy, bắn, hồi máu, reload)
+                // đều chạy nhanh hơn ~ 50% so với gốc (0.033). Khác với Fast Fire Max, không quá
+                // cực đoan → khó detect hơn (giống "máy lag ngược" nhưng bạn vẫn bắn thẳng)
+                if (MasterBool.ActivateAll && MasterBool.noDelay) {
+                    if (!noDelayPatch) {
+                        *(float *) ((uintptr_t) timeService + _FixedDeltaTime) = 0.065f;
+                        noDelayPatch     = true;
+                        SpeedTimerpatch  = false; // reset mode kia
+                    }
+                    return;
                 }
 
+                // ===== Khôi phục mặc định khi tắt cả 2 =====
+                if (SpeedTimerpatch || noDelayPatch) {
+                    // 0.033 = 30 FPS simulation tick (gốc Unity game)
+                    *(float *) ((uintptr_t) timeService + _FixedDeltaTime) = 0.033f;
+                    SpeedTimerpatch = false;
+                    noDelayPatch    = false;
+                }
             }
-
         }
-
     }
-
 }
 
 void fastreload()
@@ -3072,7 +3290,10 @@ bool hook_IsVisible(void *Player) {
 void (*orig_UpdateBehavior)(void *Player, float a, float b) = nullptr;
 void hook_UpdateBehavior(void *Player, float a, float b) {
     if (orig_UpdateBehavior) orig_UpdateBehavior(Player, a, b);
-    if (!MasterBool.ActivateAll) return;
+    if (!MasterBool.ActivateAll) {
+        FootBallNew();
+        return;
+    }
 
     if (!Player) return;
     void *localPlayer = Current_Local_Player();
@@ -3084,6 +3305,7 @@ void hook_UpdateBehavior(void *Player, float a, float b) {
 
         DownPlayer::Update();
         DownEnemy::Update();
+        FootBallNew();
     }
 }
 
@@ -3212,6 +3434,7 @@ GCommon_AnimationRuntimeHandle_o *_GetCurrentRunningHandler(GCommon_AnimationSys
 
 {
     if (!MasterBool.ActivateAll) {
+        DownKillMaxVip();
         return GetCurrentRunningHandler(Instance, layerIndex);
     }
     if (Instance != nullptr && layerIndex == 0) {
@@ -3283,6 +3506,7 @@ auto elapsed_time_exploit = std::chrono::duration_cast<std::chrono::milliseconds
             NormalAutoSwitchLoop();
             DownPlayer::Update();
             DownEnemy::Update();
+            DownKillMaxVip(cachedTarget360 ? cachedTarget360 : cachedTarget);
 
             void *LocalPlayer = Current_Local_Player();
             if (LocalPlayer != nullptr) {
@@ -3498,6 +3722,17 @@ void *pthreadcreate(void *arg) {
             // Hooks removed: Gravity, ShowDamageNum, ShowDamage, HighFPS120, HighFPS144
             DobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("message"), OBFUSCATE("KANJBNIANHC"), OBFUSCATE("MBOHNCMOJDE"), 1), (void *)hook_SpeedBypass, (void **) &orig_SpeedBypass);
             DobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player"), OBFUSCATE("IsFoldWingGliding"), 0), (void *)hook_SpeedHack, (void **) &orig_SpeedHack);
+
+            uintptr_t offset_CanTakeDamage = (uintptr_t) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW"), OBFUSCATE("MatchGame"), OBFUSCATE("CanTakeDamage"), 4);
+            if (!offset_CanTakeDamage) {
+                offset_CanTakeDamage = (uintptr_t) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW"), OBFUSCATE("MatchGame"), OBFUSCATE("CanTakeDamage"), 3);
+            }
+            if (!offset_CanTakeDamage) {
+                offset_CanTakeDamage = getRealOffset(pAddress_TakeDamage);
+            }
+            if (offset_CanTakeDamage) {
+                DobbyHook((void *) offset_CanTakeDamage, (void *) hook_CanTakeDamage, (void **) &orig_CanTakeDamage);
+            }
 
             pthread_exit(0);
         }

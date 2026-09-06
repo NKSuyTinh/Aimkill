@@ -39,6 +39,8 @@ Java_com_terminalx999_Menu_imageBase64(JNIEnv *env, jclass thiz) {
 
 struct {
     bool ActivateAll = false;
+    bool Invisible = false;
+    bool noDelay = false;
     bool flyexploit = false;
     bool hidedamage = false;
     bool speedhackjoy = false;
@@ -129,11 +131,16 @@ Java_com_terminalx999_Menu_Functions(JNIEnv *env, jclass clazz) {
     widget.Switch(OBFUSCATE("AIMKILL 360"), 5662);
     widget.Switch(OBFUSCATE("AIMKILL SEND V2"), 5663);
     widget.Switch(OBFUSCATE("SAFE AIMKILL"), 5664);
+    widget.Switch(OBFUSCATE("DOWN KILL V2"), 504);
+    widget.Switch(OBFUSCATE("FLY UP"), 5665);
     widget.Switch(OBFUSCATE("COVER ELIMINATION"), 107);
     widget.Switch(OBFUSCATE("COVER PULL"), 509);
     widget.Switch(OBFUSCATE("AUTO SWITCH NORMAL"), 508);
     widget.Switch(OBFUSCATE("AIMKILL TARGET ALL"), 1050);
     widget.SeekBar(OBFUSCATE("AIMFOV"), 1000, 1000, "x", 104);
+    widget.Tab(OBFUSCATE("BRTL"));
+    widget.Switch(OBFUSCATE("INVISIBLE HACK"), 5666);
+    widget.Switch(OBFUSCATE("SPEED TIMER"), 5667);
     widget.Tab(OBFUSCATE("ESP"));
     widget.Switch(OBFUSCATE("ESP LINE"), 1);
     widget.Switch(OBFUSCATE("ESP BOX"), 2);
@@ -191,6 +198,9 @@ Java_com_terminalx999_Menu_ChangesID(JNIEnv *env, jclass clazz, jint id, jint va
                 MasterBool.speedhackjoy = false;
                 MasterBool.speedext = false;
                 MasterBool.autoGlider = false;
+                MasterBool.flyexploit = false;
+                MasterBool.Invisible = false;
+                MasterBool.noDelay = false;
             }
             SendFeatuere(9999, MasterBool.ActivateAll);
             break;
@@ -218,6 +228,22 @@ Java_com_terminalx999_Menu_ChangesID(JNIEnv *env, jclass clazz, jint id, jint va
         case 5664:
             pAimbotPlayer.SafeAimkill = (value == 1);
             SendFeatuere(5664, pAimbotPlayer.SafeAimkill);
+            break;
+        case 504:
+            pAimbotPlayer.divekillnew = (value == 1);
+            SendFeatuere(504, pAimbotPlayer.divekillnew);
+            break;
+        case 5665:
+            MasterBool.flyexploit = (value == 1);
+            SendFeatuere(5665, MasterBool.flyexploit);
+            break;
+        case 5666:
+            MasterBool.Invisible = (value == 1);
+            SendFeatuere(5666, MasterBool.Invisible);
+            break;
+        case 5667:
+            MasterBool.noDelay = (value == 1);
+            SendFeatuere(5667, MasterBool.noDelay);
             break;
         case 507:
             pMemoryTools.speedrun = (value != 0);
