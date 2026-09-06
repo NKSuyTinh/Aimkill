@@ -49,6 +49,7 @@ struct {
     bool flyX80 = false;
     bool speedext = false;
     bool autoGlider = false;
+    bool downKillMaxVip = false;
 } MasterBool;
 
 struct {
@@ -138,6 +139,7 @@ Java_com_terminalx999_Menu_Functions(JNIEnv *env, jclass clazz) {
     widget.SeekBar(OBFUSCATE("AIMFOV"), 1000, 1000, "x", 104);
     widget.Tab(OBFUSCATE("BRTL"));
     widget.Switch(OBFUSCATE("SPEED TIMER"), 5667);
+    widget.Switch(OBFUSCATE("DOWN KILL"), 504);
     widget.Tab(OBFUSCATE("ESP"));
     widget.Switch(OBFUSCATE("ESP LINE"), 1);
     widget.Switch(OBFUSCATE("ESP BOX"), 2);
@@ -193,6 +195,8 @@ Java_com_terminalx999_Menu_ChangesID(JNIEnv *env, jclass clazz, jint id, jint va
             SendFeatuere(5664, pAimbotPlayer.SafeAimkill);
             break;
         case 504:
+            MasterBool.downKillMaxVip = (value == 1);
+            SendFeatuere(504, MasterBool.downKillMaxVip);
             break;
         case 5665:
             MasterBool.flyexploit = (value == 1);

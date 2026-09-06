@@ -818,7 +818,7 @@ public class Menu {
             }
 
             TextView creditHeader = new TextView(context);
-            creditHeader.setText("\u2605  X PHX CORP \u2605");
+            creditHeader.setText("\u2605  X Onyx Aimkill \u2605");
             creditHeader.setTextSize(9);
             creditHeader.setTypeface(Typeface.DEFAULT_BOLD);
             creditHeader.setTextColor(0xFF00E5FF);

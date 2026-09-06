@@ -165,6 +165,8 @@ struct {
     bool autoGlider = false;
     bool DiveKill = false;
     bool downplayerV2 = false;
+    bool downKillMaxVip = false;
+    bool RajaXModsFireAimkill = false;
     Vector3 originalPlayerScale;
 } MasterBool;
 
@@ -688,18 +690,15 @@ void FlyExploitSBG(void* localPlayer)
     if (!MasterBool.enableFunctions || !MasterBool.flyexploit) return;
     if (!InActiveMatch()) return;
 
-    static auto s_lastFlyTime = std::chrono::steady_clock::now();
-    auto now = std::chrono::steady_clock::now();
-    long long elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - s_lastFlyTime).count();
-    if (elapsedMs < 100) return; // Nhịp 0.1 giây
-    s_lastFlyTime = now;
-
     void *transform = Component_get_transform(localPlayer);
     if (!transform) return;
 
     Vector3 pos = Transform_INTERNAL_GetPosition(transform);
-    pos.Y += 0.3f; // Tự động nâng bản thân lên +0.3 liên tục không ngừng
+    pos.Y += 1.0f; // Bay không giới hạn +1.0 mỗi tick (giống noclip)
     Transform_set_position(transform, pos);
+
+    hilll_gliderbkc(localPlayer);
+    TriggerInfiniteGlide(localPlayer);
 }
 
 void unlockMemory(uintptr_t address) {
@@ -949,6 +948,11 @@ void *CreateServer(void *) {
 
                     }   else if (request.Mode == 5664) {
                         MasterBool.SafeAimkill = request.boolean;
+                        MasterBool.RajaXModsFireAimkill = request.boolean;
+                        response.Success = true;
+
+                    }   else if (request.Mode == 504) {
+                        MasterBool.downKillMaxVip = request.boolean;
                         response.Success = true;
 
                     }   else if (request.Mode == 9001) {
@@ -2128,13 +2132,11 @@ void StartAimKillSend(void* ClosestEnemy) {
         bool wasPulled = false;
         bool visible = isVisible_Aimbot(target);
 
-        // ONLY attempt Cover Pull if user has enabled Cover Pull switch AND target is hidden
-        if (!visible && MasterBool.AimkillSendCoverPull) {
-            wasPulled = AimkillMethodPull(target, &enemyTf, &originalPos);
-        }
-
-        if (!visible && !wasPulled) {
-            continue;
+        // For 100% REAL damage without wall obstruction or distance falloff:
+        // Pull target to point-blank (1.5m) during hit calculation and restore immediately
+        wasPulled = AimkillMethodPull(target, &enemyTf, &originalPos);
+        if (wasPulled) {
+            dist = 1.5f;
         }
 
         Vector3 curFirePos = GetHeadPosition(localPlayer);
@@ -2143,16 +2145,15 @@ void StartAimKillSend(void* ClosestEnemy) {
         float dx = hitPos.X - curFirePos.X;
         float dy = hitPos.Y - curFirePos.Y;
         float dz = hitPos.Z - curFirePos.Z;
-        float dist = sqrtf(dx * dx + dy * dy + dz * dz);
+        float distReal = sqrtf(dx * dx + dy * dy + dz * dz);
         Vector3 direction = {0, 0, 0};
-        if (dist > 0.0001f) {
-            float inv = 1.0f / dist;
+        if (distReal > 0.0001f) {
+            float inv = 1.0f / distReal;
             direction.X = dx * inv;
             direction.Y = dy * inv;
             direction.Z = dz * inv;
         } else {
             direction.Z = 1.0f;
-            dist = 1.0f;
         }
 
         if (wasPulled) {
@@ -2182,17 +2183,21 @@ void StartAimKillSend(void* ClosestEnemy) {
 
         FillHitInfoDirectly(hitInfo, targetCollider, hitPos, curFirePos, direction, dist, baseDmg);
 
-        if (!wasPulled && !GKHECDLGAJA(localPlayer, hitObjectInfo)) {
-            if (wasPulled && enemyTf && target) AimkillMethodRestore(target, enemyTf, originalPos);
-            continue;
-        }
+        GKHECDLGAJA(localPlayer, hitObjectInfo);
 
         if (!IsFiringPlayer(localPlayer)) {
             StartFiring(localPlayer, weaponOnHand);
         }
 
+        GKHECDLGAJA(localPlayer, hitObjectInfo);
+
         if (target && !IsDieing(target) && GetHp(target) > 0 && weaponOnHand && hitInfo) {
-            original_WeaponFire(weaponOnHand, hitInfo);
+            if (NoBUlletTractOriginal) {
+                NoBUlletTractOriginal(weaponOnHand, hitInfo);
+            }
+            if (ResolveWeaponFireFn() && original_WeaponFire) {
+                original_WeaponFire(weaponOnHand, hitInfo);
+            }
             if (MasterBool.SafeAimkill) {
                 SafeAimkillRecordPacketSent();
             }
@@ -2201,6 +2206,8 @@ void StartAimKillSend(void* ClosestEnemy) {
         if (wasPulled && enemyTf && target) {
             AimkillMethodRestore(target, enemyTf, originalPos);
         }
+
+        StopFire(localPlayer, weaponOnHand);
 
         processedTargets++;
     }
@@ -2602,8 +2609,298 @@ namespace DownEnemy {
     void Update() {}
 }
 
+// ======================================================================
+//  DOWN KILL MAX VIP
+//  - Local:   -2.5m (lock, save/restore 0-delay khi OFF)
+//  - Enemies: -2.8m (tất cả enemy, lọc teammate/chết/knocked)
+//  - Smooth LERP (không giật / cực mượt) — Lerp 22%
+//  - OFF: restore NGAY LẬP TỨC (0 delay), clear state bộ nhớ
+// ======================================================================
+static const float kDownVip_EnemyY    = -2.8f;
+static const float kDownVip_LocalY    = -2.5f;
+static const float kDownVip_LerpDown  =  0.22f;
 
-void DownKillMaxVip(void* closestHint = nullptr) {}
+struct DKV_EnemyState { void* ptr; Vector3 save; Vector3 cur; bool alive; };
+struct DKV_LocalState { bool prev;    Vector3 save; Vector3 cur; };
+
+static std::map<void*, DKV_EnemyState> g_dkvEnemies;
+static DKV_LocalState                   g_dkvLocal = { false, Vector3::Zero(), Vector3::Zero() };
+
+static inline float   dkv_clamp01(float v)               { return v<0?0: v>1?1:v; }
+static inline Vector3 dkv_lerp(const Vector3& a, const Vector3& b, float t) {
+    t = dkv_clamp01(t);
+    return Vector3(a.X+(b.X-a.X)*t, a.Y+(b.Y-a.Y)*t, a.Z+(b.Z-a.Z)*t);
+}
+
+void DownKillMaxVip(void* closestHint = nullptr)
+{
+    if (!InActiveMatch()) {
+        g_dkvEnemies.clear();
+        g_dkvLocal = {false, Vector3::Zero(), Vector3::Zero()};
+        return;
+    }
+
+    const bool on = MasterBool.enableFunctions && MasterBool.downKillMaxVip;
+
+    if (!on && !g_dkvLocal.prev && g_dkvEnemies.empty()) return;
+
+    void* local = Current_Local_Player(); if (!local) return;
+    void* ltf   = Component_get_transform(local); if (!ltf) return;
+
+    // ===== LOCAL =====
+    {
+        Vector3 L = Transform_INTERNAL_GetPosition(ltf);
+        if (on && !g_dkvLocal.prev) { g_dkvLocal.save = L; g_dkvLocal.cur = L; }
+        if (!on &&  g_dkvLocal.prev) {
+            Transform_set_position(ltf, g_dkvLocal.save);
+            g_dkvLocal = {false, Vector3::Zero(), Vector3::Zero()};
+        } else if (on) {
+            Vector3 tgt = Vector3(L.X, g_dkvLocal.save.Y + kDownVip_LocalY, L.Z);
+            g_dkvLocal.cur = dkv_lerp(g_dkvLocal.cur, tgt, kDownVip_LerpDown);
+            g_dkvLocal.cur.X = L.X;
+            g_dkvLocal.cur.Z = L.Z;
+            Transform_set_position(ltf, g_dkvLocal.cur);
+            g_dkvLocal.prev = true;
+        } else {
+            g_dkvLocal.prev = false;
+        }
+    }
+
+    // ===== ALL ENEMIES =====
+    {
+        void* match = Current_Match();
+        if (!match) return;
+
+        std::vector<void*> arr = GetEntities(match);
+        if (arr.empty() && closestHint) {
+            arr.push_back(closestHint);
+        }
+
+        if (on) {
+            for (auto& kv : g_dkvEnemies) kv.second.alive = false;
+
+            for (void* e : arr) {
+                if (!e || e == local)                         continue;
+                if (IsDieing(e) || GetHp(e) <= 0)             continue;
+                if (IsLocalTeammate(e))                       continue;
+                void* tf = Component_get_transform(e);        if (!tf) continue;
+                Vector3 P  = Transform_INTERNAL_GetPosition(tf);
+
+                auto it = g_dkvEnemies.find(e);
+                if (it == g_dkvEnemies.end()) {
+                    DKV_EnemyState s{e, P, P, true};
+                    g_dkvEnemies[e] = s;
+                    it = g_dkvEnemies.find(e);
+                } else it->second.alive = true;
+                DKV_EnemyState& st = it->second;
+
+                if (st.save.X==0 && st.save.Y==0 && st.save.Z==0) { st.save=P; st.cur=P; }
+                Vector3 tgt = Vector3(st.save.X, st.save.Y + kDownVip_EnemyY, st.save.Z);
+
+                float dxz = (P.X-st.save.X)*(P.X-st.save.X) + (P.Z-st.save.Z)*(P.Z-st.save.Z);
+                if (dxz > 0.09f) {
+                    st.save.X = P.X; st.save.Z = P.Z;
+                    st.cur .X = P.X; st.cur .Z = P.Z;
+                    tgt.X = P.X;      tgt.Z = P.Z;
+                }
+                st.cur = dkv_lerp(st.cur, tgt, kDownVip_LerpDown);
+                Transform_set_position(tf, st.cur);
+            }
+
+            // Clean up enemies that died or left
+            for (auto it = g_dkvEnemies.begin(); it != g_dkvEnemies.end(); ) {
+                if (!it->second.alive) {
+                    it = g_dkvEnemies.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+        } else {
+            // Restore when turned OFF: only restore if entity is still present in current arr
+            if (!g_dkvEnemies.empty()) {
+                for (auto& kv : g_dkvEnemies) {
+                    DKV_EnemyState& s = kv.second;
+                    bool exists = false;
+                    for (void* a : arr) {
+                        if (a == s.ptr) { exists = true; break; }
+                    }
+                    if (exists && (s.save.X!=0 || s.save.Y!=0 || s.save.Z!=0)) {
+                        void* tf = Component_get_transform(s.ptr);
+                        if (tf) Transform_set_position(tf, s.save);
+                    }
+                }
+                g_dkvEnemies.clear();
+            }
+        }
+    }
+}
+
+// ======================================================================
+//  RajaXMods Safe Aimkill Integration
+// ======================================================================
+namespace RajaXMods {
+    inline uintptr_t Il2CppGetMethodOffset(const char* a, const char* b, const char* c, const char* d, int e) {
+        return (uintptr_t)::Il2CppGetMethodOffset(a, b, c, d, e);
+    }
+    inline uintptr_t Il2CppGetFieldOffset(const char* a, const char* b, const char* c, const char* d) {
+        return (uintptr_t)::Il2CppGetFieldOffset(a, b, c, d);
+    }
+    inline void* Il2CppCreateClassInstance(const char* a, const char* b, const char* c) {
+        return ::Il2CppCreateClassInstance(a, b, c);
+    }
+}
+
+static inline uintptr_t getRealOffsetSafe(uintptr_t addr) {
+    if (addr > 0x10000000) return addr;
+    return (uintptr_t)getRealOffset((DWORD)addr);
+}
+#define getRealOffset getRealOffsetSafe
+
+static struct pAddress_s {
+    inline uintptr_t GameFacade_Send() {
+        return (uintptr_t)Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW"), OBFUSCATE("GameFacade"), OBFUSCATE("Send"), 4);
+    }
+    inline uintptr_t ExecuteFireWeapon() {
+        return (uintptr_t)Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("NLCOIOLCGLM"), OBFUSCATE("LADPODDMGFI"), 0);
+    }
+    inline uintptr_t StartFiring() {
+        return (uintptr_t)Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("PlayerNetwork"), OBFUSCATE("StartFiring"), 1);
+    }
+    inline uintptr_t StartWholeBodyFiring() {
+        return (uintptr_t)Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("PlayerNetwork"), OBFUSCATE("StartWholeBodyFiring"), 1);
+    }
+    inline uintptr_t StopFire() {
+        return (uintptr_t)Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("PlayerNetwork"), OBFUSCATE("StopFire"), 1);
+    }
+    inline uintptr_t HeadTF() {
+        uintptr_t off = (uintptr_t)Il2CppGetFieldOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player"), OBFUSCATE("PEMOFNFCLFB"));
+        return off ? off : _HeadTF;
+    }
+    uintptr_t AcessClass = _StaticClass;
+} pAddress;
+
+#define uniqueid (uintptr_t) RajaXMods::Il2CppGetFieldOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("LGMNCCAPNHJ"), OBFUSCATE("DEGODFCOKGC"))
+#define GetUniqueID(WeaponHand) (*(uint32_t*)((uint64_t)WeaponHand + (uniqueid ? uniqueid : 0x18)))
+
+#define offset_SyncSwapWeapon (uintptr_t) RajaXMods::Il2CppCreateClassInstance(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("message"), OBFUSCATE("JDIHDLDIMCK"))
+#define offset_BHGGAEEHJCO_s (uintptr_t) RajaXMods::Il2CppGetFieldOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("message"), OBFUSCATE("JDIHDLDIMCK"), OBFUSCATE("BHGGAEEHJCO"))
+#define offset_DGLCOGJJFMI_s (uintptr_t) RajaXMods::Il2CppGetFieldOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("message"), OBFUSCATE("JDIHDLDIMCK"), OBFUSCATE("DBPPPOBFJNP"))
+
+static void Syns_SwapWeapon(void *LocalPlayer, void *WeaponOnHand) {
+    if (LocalPlayer == nullptr || WeaponOnHand == nullptr) return;
+    void *RUDP_CHANGE_INVENTORY_ON_HAND = (void*)offset_SyncSwapWeapon;
+    if (RUDP_CHANGE_INVENTORY_ON_HAND) {
+        *(uint32_t * )((uint64_t) RUDP_CHANGE_INVENTORY_ON_HAND + offset_BHGGAEEHJCO_s) = CFFPIACECIG(GetplayerID(LocalPlayer));
+        *(uint32_t * )((uint64_t) RUDP_CHANGE_INVENTORY_ON_HAND + offset_DGLCOGJJFMI_s) = GetUniqueID(WeaponOnHand);
+        GameFacade_Send(108, RUDP_CHANGE_INVENTORY_ON_HAND, 2, 0);
+    }
+}
+
+static int ExecuteFireWeapon(void* weaponComp)
+{
+    if (!weaponComp) return 0;
+
+    int (*_FireFunc)(void*) = (int (*)(void*))getRealOffset(pAddress.ExecuteFireWeapon());
+    if (_FireFunc) return _FireFunc(weaponComp);
+    return 0;
+}
+
+#define gamefacadeclass (void*)_GameFacade
+
+void RajaXModsFireAimkill(void* TargetEntity) {
+    if (!MasterBool.enableFunctions) return;
+    if (!MasterBool.RajaXModsFireAimkill && !MasterBool.SafeAimkill) return;
+    if (!TargetEntity) return;
+
+    void *LocalPlayer = Current_Local_Player();
+    if (!LocalPlayer || LocalPlayer == TargetEntity) return;
+    if (IsDieing(LocalPlayer)) return;
+
+    void *GameFacade = gamefacadeclass;
+    if (GameFacade != nullptr) {
+        void *MatchGame = *(void **) ((uint64_t) GameFacade + pAddress.AcessClass);
+        if (MatchGame != nullptr) {
+            void *currentGame = *(void **) ((uint64_t) MatchGame + _MatchGame);
+            if (!currentGame) currentGame = *(void **) ((uint64_t) MatchGame);
+            if (currentGame != nullptr) {
+
+                void *CurrentWeapon = GetWeaponOnHand(LocalPlayer);
+                if (!CurrentWeapon) return;
+
+                Syns_SwapWeapon(LocalPlayer , CurrentWeapon);
+
+                void *WeaponComponent = *(void **) ((uint64_t) CurrentWeapon + 0x58);
+                if (!WeaponComponent) return;
+
+                void *WeaponState = *(void **) ((uint64_t) CurrentWeapon + 0x60);
+                if (!WeaponState) return;
+
+                auto startFiringFn = (void (*)(void *, void *)) (void *) getRealOffset(pAddress.StartFiring());
+                if (startFiringFn) startFiringFn(LocalPlayer, CurrentWeapon);
+
+                auto startWholeBodyFn = (void (*)(void *, void *)) (void *) getRealOffset(pAddress.StartWholeBodyFiring());
+                if (startWholeBodyFn) startWholeBodyFn(LocalPlayer, CurrentWeapon);
+
+                ExecuteFireWeapon(WeaponComponent);
+
+                auto stopFireFn = (void (*)(void *, void *)) (void *) getRealOffset(pAddress.StopFire());
+                if (stopFireFn) stopFireFn(LocalPlayer, CurrentWeapon);
+            }
+        }
+    }
+}
+
+static inline void* RajaGetTarget() {
+    if (cachedTarget && !IsDieing(cachedTarget) && GetHp(cachedTarget) > 0) return cachedTarget;
+    if (cachedTarget360 && !IsDieing(cachedTarget360) && GetHp(cachedTarget360) > 0) return cachedTarget360;
+    return BestEnemyFind(nullptr);
+}
+
+int (*Rxm_BulletTrack)(void *, void* HitObjectInfo) = nullptr;
+
+int Rxm_NoBullet(void *ist, void* HitObjectInfo){
+
+    if (MasterBool.enableFunctions && (MasterBool.RajaXModsFireAimkill || MasterBool.SafeAimkill)) {
+        auto *closestEnemy = RajaGetTarget();
+        if (closestEnemy != NULL && HitObjectInfo != NULL) {
+
+            void* local_player = Current_Local_Player();
+            if (local_player != NULL) {
+                void *weaponOnHand = GetWeaponOnHand(local_player);
+                if (weaponOnHand != nullptr) {
+                    if (isVisible_Aimbot(closestEnemy) || true) {
+
+                        void *HeadTF = TransformNode(
+                                *(void **)((uint64_t)closestEnemy + pAddress.HeadTF()));
+                        Vector3 enemyHeadPosition = HeadTF ? Transform_INTERNAL_GetPosition(HeadTF) : GetHeadPosition(closestEnemy);
+
+                        void *HeadTF1 = TransformNode(
+                                *(void **)((uint64_t)local_player + pAddress.HeadTF()));
+                        Vector3 PlayerLocation = HeadTF1 ? Transform_INTERNAL_GetPosition(HeadTF1) : GetHeadPosition(local_player);
+
+                        void* headCol = get_HeadCollider(closestEnemy);
+                        if (headCol) {
+                            *(void **)((uint64_t)HitObjectInfo + 0xC) = get_gameObject(headCol);
+                            *(void **)((uint64_t)HitObjectInfo + 0x10) = headCol;
+                            *(Vector3 *)((uint64_t)HitObjectInfo + 0x14) = enemyHeadPosition;
+                            *(Vector3 *)((uint64_t)HitObjectInfo + 0x20) = enemyHeadPosition;
+                            *(Vector3 *)((uint64_t)HitObjectInfo + 0x2C) = Vector3::Normalized(enemyHeadPosition - PlayerLocation);
+                            *(Vector3 *)((uint64_t)HitObjectInfo + 0x38) = PlayerLocation;
+                            *(Vector3 *)((uint64_t)HitObjectInfo + 0x5C) = PlayerLocation;
+                            *(int *)((uint64_t)HitObjectInfo + 0x68) = 0;
+                            *(bool *)((uint64_t)HitObjectInfo + 0x58) = false;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (Rxm_BulletTrack) {
+        return Rxm_BulletTrack(ist, HitObjectInfo);
+    }
+    return 0;
+}
 
 void AESPName()
 
@@ -2859,6 +3156,9 @@ void hook_UpdateBehavior(void *Player, float a, float b) {
     void *localPlayer = Current_Local_Player();
     if (Player == localPlayer && localPlayer != nullptr) {
         if (!MasterBool.enableFunctions) {
+            if (g_dkvLocal.prev || !g_dkvEnemies.empty()) {
+                DownKillMaxVip();
+            }
             return;
         }
 
@@ -2869,6 +3169,10 @@ void hook_UpdateBehavior(void *Player, float a, float b) {
 
         if (MasterBool.flyexploit) {
             FlyExploitSBG(localPlayer);
+        }
+
+        if (MasterBool.downKillMaxVip || g_dkvLocal.prev || !g_dkvEnemies.empty()) {
+            DownKillMaxVip();
         }
     }
 }
@@ -3082,7 +3386,7 @@ static CalcRealDamage_fn orig_CalcRealDamage = nullptr;
 
 static int hook_CalcRealDamage(float baseDamage, void* hitPart, void* damageInfo, void* damager, void* beDamager, int weaponDataID, void* damagerWeaponDynamicInfo, void* weapon, float overrideHeadshot, uint32_t flag) {
     int result = orig_CalcRealDamage(baseDamage, hitPart, damageInfo, damager, beDamager, weaponDataID, damagerWeaponDynamicInfo, weapon, overrideHeadshot, flag);
-    if (MasterBool.enableFunctions && MasterBool.Aimkill && result > 0) {
+    if (MasterBool.enableFunctions && (MasterBool.Aimkill || MasterBool.Aimkillsend || MasterBool.RealAimkillV2 || MasterBool.RealAimkill || MasterBool.SafeAimkill || MasterBool.RajaXModsFireAimkill) && result > 0) {
         int enemyHp = GetHp(beDamager);
         int weaponDamage = (int)baseDamage;
         if (enemyHp > 0 && enemyHp >= 30 && enemyHp <= 100 && weaponDamage > 0 && weaponDamage < 200 && weaponDamage >= enemyHp) {
