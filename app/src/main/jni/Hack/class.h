@@ -1178,36 +1178,18 @@ bool SilentGhostPullV2(void *enemy, float *outBestXZRadius, bool apply = true)
         return true;
     };
 
-    /* ---------- Forward priority ---------- */
+    /* ---------- Fast 6-point sample around cover (replaces 78-raycast freeze) ---------- */
+    static const struct { float x, y, z; } fastOffsets[] = {
+        { 0.0f,  0.8f,  0.0f }, // peek top
+        { 0.0f, -0.5f,  0.0f }, // crouch low
+        {-1.2f,  0.0f,  0.0f }, // step left
+        { 1.2f,  0.0f,  0.0f }, // step right
+        { 0.0f,  0.0f,  1.2f }, // forward
+        { 0.0f,  0.0f, -1.2f }  // backward
+    };
 
-    static const float zForward[] = {1.5f,3.0f,4.5f,-1.5f,-3.0f,-4.5f};
-    for (float z : zForward)
-        if (testPull(0,0,z)) return true;
-
-    /* ---------- Side offsets ---------- */
-
-    static const float xSide[] = {-2.0f,-0.8f,0.8f,2.0f,-3.2f,3.2f};
-    for (float x : xSide)
-        if (testPull(x,0,0)) return true;
-
-    /* ---------- Small grid search ---------- */
-
-    for (float z : zForward)
-    {
-        for (float x : xSide)
-        {
-            if (testPull(x,0,z))
-                return true;
-        }
-    }
-
-    /* ---------- Drop below cover ---------- */
-
-    for (int i=0;i<30;i++)
-    {
-        float dy = -1.4f - 0.015f*i;
-        if (testPull(0,dy,0))
-            return true;
+    for (const auto& off : fastOffsets) {
+        if (testPull(off.x, off.y, off.z)) return true;
     }
 
     return false;

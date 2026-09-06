@@ -1460,6 +1460,9 @@ static bool AimkillMethodPull(void* enemy, void** outTf, Vector3* outOriginal) {
     if (!enemy) {
         return false;
     }
+    if (!MasterBool.AimkillSendCoverPull) {
+        return false;
+    }
     if (!IsPullTargetValid(enemy)) {
         return false;
     }
@@ -2102,17 +2105,18 @@ void StartAimKillSend(void* ClosestEnemy) {
     if (g_inAimkillSend) return;
     g_inAimkillSend = true;
 
-    // Smooth burst cooldown to ensure 0 lag when performing squad swipe
-    static float s_lastAimkillSendTime = 0.0f;
-    float now = get_time();
-    if (now - s_lastAimkillSendTime < 0.12f) {
+    // Ultra-smooth zero-overhead cadence (75ms = ~13 shots/s, lightning fast lethality, 0 FPS drops)
+    static auto s_lastAimkillSendTime = std::chrono::steady_clock::now();
+    auto now = std::chrono::steady_clock::now();
+    long long elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - s_lastAimkillSendTime).count();
+    if (elapsedMs < 75) {
         g_inAimkillSend = false;
         return;
     }
     s_lastAimkillSendTime = now;
 
     void *localPlayer = Current_Local_Player();
-    if (!localPlayer || IsDieing(localPlayer)) { g_inAimkillSend = false; return; }
+    if (!localPlayer || IsDieing(localPlayer) || GetHp(localPlayer) <= 0) { g_inAimkillSend = false; return; }
 
     void *weaponOnHand = GetWeaponOnHand(localPlayer);
     if (!weaponOnHand) { g_inAimkillSend = false; return; }
@@ -2120,12 +2124,7 @@ void StartAimKillSend(void* ClosestEnemy) {
     void* current_match = Current_Match();
     if (!current_match) { g_inAimkillSend = false; return; }
 
-    auto players = GetEntities(current_match);
-    if (players.empty()) { g_inAimkillSend = false; return; }
-
-    Vector3 firePos = GetHeadPosition(localPlayer);
-
-    if (!ResolveWeaponFireFn()) { g_inAimkillSend = false; return; }
+    if (!ResolveWeaponFireFn() || !original_WeaponFire) { g_inAimkillSend = false; return; }
 
     void *hitObjectInfo = *(void **)((uintptr_t)localPlayer + _HitObjectInfoWp);
     if (!hitObjectInfo) { g_inAimkillSend = false; return; }
@@ -2133,52 +2132,57 @@ void StartAimKillSend(void* ClosestEnemy) {
     COW_GamePlay_MADMMIICBNN_o *hitInfo = (COW_GamePlay_MADMMIICBNN_o *)hitObjectInfo;
     if (!hitInfo) { g_inAimkillSend = false; return; }
 
+    // Fast candidate gathering: limit to at most 2 closest valid enemies within combat range (180m)
     std::vector<void*> targetsToProcess;
 
-    // Prioritize explicit target parameter if valid (e.g. single enemy or locked target)
     if (ClosestEnemy && !IsDieing(ClosestEnemy) && GetHp(ClosestEnemy) > 0 && !IsLocalTeammate(ClosestEnemy)) {
         targetsToProcess.push_back(ClosestEnemy);
     }
 
-    // Build target queue sorted by 3D distance squared (100x faster than WorldToScreenPoint, ZERO CPU lag)
-    std::vector<std::pair<float, void*>> fastCandidates;
-    for (auto p : players) {
-        if (!p || p == localPlayer || p == ClosestEnemy || IsDieing(p) || GetHp(p) <= 0 || IsLocalTeammate(p)) continue;
+    if (targetsToProcess.size() < 2) {
+        auto players = GetEntities(current_match);
+        Vector3 firePos = GetHeadPosition(localPlayer);
 
-        void *HeadTF = TransformNode(*(void **) ((uint64_t) p + _HeadTF));
-        if (!HeadTF) continue;
+        void* secondBest = nullptr;
+        float secondBestDistSq = 180.0f * 180.0f; // Ignore enemies further than 180m!
 
-        Vector3 headPos = Transform_INTERNAL_GetPosition(HeadTF);
-        float dx = headPos.X - firePos.X;
-        float dy = headPos.Y - firePos.Y;
-        float dz = headPos.Z - firePos.Z;
-        float distSq = dx * dx + dy * dy + dz * dz;
+        for (auto p : players) {
+            if (!p || p == localPlayer || p == ClosestEnemy || IsDieing(p) || GetHp(p) <= 0 || IsLocalTeammate(p)) continue;
 
-        fastCandidates.push_back({distSq, p});
-    }
+            void *HeadTF = TransformNode(*(void **) ((uint64_t) p + _HeadTF));
+            if (!HeadTF) continue;
 
-    if (!fastCandidates.empty()) {
-        std::sort(fastCandidates.begin(), fastCandidates.end(),
-                  [](const std::pair<float, void*>& a, const std::pair<float, void*>& b) {
-                      return a.first < b.first;
-                  });
+            Vector3 headPos = Transform_INTERNAL_GetPosition(HeadTF);
+            float dx = headPos.X - firePos.X;
+            float dy = headPos.Y - firePos.Y;
+            float dz = headPos.Z - firePos.Z;
+            float distSq = dx * dx + dy * dy + dz * dz;
 
-        for (auto& item : fastCandidates) {
-            targetsToProcess.push_back(item.second);
+            if (distSq < secondBestDistSq) {
+                secondBestDistSq = distSq;
+                secondBest = p;
+            }
+        }
+
+        if (secondBest) {
+            targetsToProcess.push_back(secondBest);
         }
     }
 
     if (targetsToProcess.empty()) { g_inAimkillSend = false; return; }
 
-    // Force No Reload attribute so weapon ammo never drops and AWM bolt-action animation lock is bypassed
+    // Bypass reload lock so ammo does not drop and AWM/Sniper animation lock is skipped
     void *playerattributes = *(void **) ((uint64_t) localPlayer + _playerAttributes);
     if (playerattributes != nullptr) {
         *(bool *) ((uintptr_t) playerattributes + offset_NoReload) = true;
     }
 
     int processedTargets = 0;
+    int candidatesTested = 0;
+
     for (auto target : targetsToProcess) {
-        if (processedTargets >= 5) break; // Multi-target squad swipe: hit up to 5 targets in 1 tick
+        if (processedTargets >= 2) break; // Multi-target squad swipe: hit up to 2 targets in 1 tick
+        if (++candidatesTested > 2) break; // Never test more than 2 candidates (guarantees 0 lag)
         if (!target || target == localPlayer || IsDieing(target) || GetHp(target) <= 0 || IsLocalTeammate(target)) continue;
 
         if (MasterBool.SafeAimkill && !SafeAimkillCanSendPacket(target)) {
@@ -2187,15 +2191,18 @@ void StartAimKillSend(void* ClosestEnemy) {
 
         void* enemyTf = nullptr;
         Vector3 originalPos = {0, 0, 0};
-        bool wasPulled = AimkillMethodPull(target, &enemyTf, &originalPos);
+        bool wasPulled = false;
         bool visible = isVisible_Aimbot(target);
 
+        // ONLY attempt Cover Pull if user has enabled Cover Pull switch AND target is hidden
+        if (!visible && MasterBool.AimkillSendCoverPull) {
+            wasPulled = AimkillMethodPull(target, &enemyTf, &originalPos);
+        }
+
         if (!visible && !wasPulled) {
-            if (wasPulled && enemyTf && target) AimkillMethodRestore(target, enemyTf, originalPos);
             continue;
         }
 
-        // Calculate post-pull active positions for 100% valid server hit registration
         Vector3 curFirePos = GetHeadPosition(localPlayer);
         Vector3 hitPos = MasterBool.AimkillBody ? GetBodyPosition(target) : GetHeadPosition(target);
 
@@ -2214,7 +2221,6 @@ void StartAimKillSend(void* ClosestEnemy) {
             dist = 1.0f;
         }
 
-        // Bypasses weapon distance limits on short-range guns (Shotguns/Pistols) when target is pulled
         if (wasPulled) {
             dist = 1.5f;
         }
@@ -2235,15 +2241,13 @@ void StartAimKillSend(void* ClosestEnemy) {
             continue;
         }
 
-        // Calculate exact lethal damage for ALL weapon types (ARs, SMGs, Shotguns, Snipers, Pistols)
         int baseDmg = GetDamage(weaponOnHand);
         if (baseDmg <= 0 || baseDmg < 100) {
-            baseDmg = MasterBool.AimkillBody ? 180 : 350; // Universal lethal damage calibration
+            baseDmg = MasterBool.AimkillBody ? 180 : 350;
         }
 
         FillHitInfoDirectly(hitInfo, targetCollider, hitPos, curFirePos, direction, dist, baseDmg);
 
-        // Raycast line of sight check — bypass if target was pulled through cover to prevent fake damage
         if (!wasPulled && !GKHECDLGAJA(localPlayer, hitObjectInfo)) {
             if (wasPulled && enemyTf && target) AimkillMethodRestore(target, enemyTf, originalPos);
             continue;
@@ -2254,13 +2258,7 @@ void StartAimKillSend(void* ClosestEnemy) {
         }
 
         if (target && !IsDieing(target) && GetHp(target) > 0 && weaponOnHand && hitInfo) {
-            // Dual-channel hit packet dispatch for ZERO fake damage on ALL weapon types
-            if (NoBUlletTractOriginal) {
-                NoBUlletTractOriginal(weaponOnHand, hitInfo);
-            }
-            if (ResolveWeaponFireFn() && original_WeaponFire) {
-                original_WeaponFire(weaponOnHand, hitInfo);
-            }
+            original_WeaponFire(weaponOnHand, hitInfo);
             if (MasterBool.SafeAimkill) {
                 SafeAimkillRecordPacketSent();
             }
@@ -2551,11 +2549,7 @@ void* BestEnemyFind(void* skipTarget)
 }
 
 void* BestEnemyFind360()
-
 {
-    static std::vector<std::pair<float, void*>> enemyList;
-    static size_t index = 0;
-    enemyList.clear();
     void* StaticGameFacade = *(void**)((uint64_t)_GameFacade + _StaticClass);
     if (!StaticGameFacade) return nullptr;
     void *ClassMatchGame = *(void **)((uint64_t)StaticGameFacade + _MatchGame);
@@ -2571,25 +2565,23 @@ void* BestEnemyFind360()
     Vector3 LocalPos = Transform_INTERNAL_GetPosition(LocalTF);
 
     auto players = GetEntities(current_match);
+    void* bestEnemy = nullptr;
+    float minDistance = 180.0f; // Target closest active threat within 180m
+
     for (auto player: players) {
-        void* enemy = player;
-        if (!enemy || enemy == LocalPlayer)continue;
-        if (IsDieing(enemy))continue;
-        if (IsLocalTeammate(enemy)) continue;
-        if (GetHp(enemy) <= 0)continue;
-        void *HeadTF = TransformNode(*(void**)((uint64_t)enemy + _HeadTF));
+        if (!player || player == LocalPlayer) continue;
+        if (IsDieing(player) || IsLocalTeammate(player) || GetHp(player) <= 0) continue;
+        void *HeadTF = TransformNode(*(void**)((uint64_t)player + _HeadTF));
         if (!HeadTF) continue;
         Vector3 enemyPos = Transform_INTERNAL_GetPosition(HeadTF);
         float distance = Vector3Distance(LocalPos, enemyPos);
-        enemyList.push_back(std::make_pair(distance, enemy));
+        if (distance < minDistance) {
+            minDistance = distance;
+            bestEnemy = player;
+        }
     }
 
-    if (enemyList.empty()) return nullptr;
-    std::sort(enemyList.begin(), enemyList.end(),[](const std::pair<float, void*>& a, const std::pair<float, void*>& b){return a.first < b.first;});
-    size_t idx = index % enemyList.size();
-    void* result = enemyList[idx].second;
-    index++;
-    return result;
+    return bestEnemy;
 }
 
 #include <math.h>
