@@ -2,7 +2,7 @@
 #include <map>
 #include <jni.h>
 #include <unistd.h>
-#include "Il2cppp.h"
+#include "Il2Cppp.h"
 #include "xdl/include/xdl.h"
 
 #define g_LogTag "Created By DG CHEATS"

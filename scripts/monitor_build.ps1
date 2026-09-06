@@ -42,7 +42,7 @@ for ($i = 0; $i -lt 30; $i++) {
         $runs = $resp.workflow_runs
 
         if ($CommitSha) {
-            $matchingRun = $runs | Where-Object { $_.head_sha -eq $CommitSha } | Select-Object -First 1
+            $matchingRun = $runs | Where-Object { $_.head_sha -like "$CommitSha*" } | Select-Object -First 1
             if ($matchingRun) {
                 $runId = $matchingRun.id
                 $runNumber = $matchingRun.run_number
