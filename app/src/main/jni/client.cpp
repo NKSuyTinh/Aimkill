@@ -125,6 +125,7 @@ JNIEXPORT void JNICALL
 Java_com_terminalx999_Menu_Functions(JNIEnv *env, jclass clazz) {
     Widget widget = Widget(env);
     widget.Tab(OBFUSCATE("AIM"));
+    widget.Switch(OBFUSCATE("ENABLE ALL"), 9999);
     widget.Switch(OBFUSCATE("AIMKILL 360"), 5662);
     widget.Switch(OBFUSCATE("AIMKILL SEND V2"), 5663);
     widget.Switch(OBFUSCATE("COVER ELIMINATION"), 107);
@@ -159,6 +160,38 @@ extern "C"
 JNIEXPORT void JNICALL
 Java_com_terminalx999_Menu_ChangesID(JNIEnv *env, jclass clazz, jint id, jint value) {
     switch (id) {
+        case 9999:
+            MasterBool.ActivateAll = (value == 1);
+            if (!MasterBool.ActivateAll) {
+                pAimbotPlayer.RealAimkillV2 = false;
+                pAimbotPlayer.Aimkillsend = false;
+                pAimbotPlayer.Aimkill = false;
+                pAimbotPlayer.TargetAll = false;
+                pAimbotPlayer.AimkillSendCoverPull = false;
+                pAimbotPlayer.smartmove = false;
+                pAimbotPlayer.divekillnew = false;
+                pEspPlayer.espLine = false;
+                pEspPlayer.espBox = false;
+                pEspPlayer.espHealth = false;
+                pEspPlayer.espNickName = false;
+                pEspPlayer.espDistance = false;
+                pEspPlayer.espWeapon = false;
+                pEspPlayer.espDrawFov = false;
+                pMemoryTools.AutoRevive = false;
+                pMemoryTools.resetguest = false;
+                pMemoryTools.speedrun = false;
+                pMemoryTools.teleportenemytome = false;
+                pMemoryTools.fastfuck = false;
+                pMemoryTools.noreloadfck = false;
+                pMemoryTools.autofire = false;
+                pMemoryTools.autoSwitchEnabled = false;
+                pMemoryTools.autoswitchsafe = false;
+                MasterBool.speedhackjoy = false;
+                MasterBool.speedext = false;
+                MasterBool.autoGlider = false;
+            }
+            SendFeatuere(9999, MasterBool.ActivateAll);
+            break;
         case 7896:
             pMemoryTools.AutoRevive = (value == 1);
             SendFeatuere(7896, pMemoryTools.AutoRevive);
@@ -291,12 +324,14 @@ Java_com_terminalx999_Menu_ChangesID(JNIEnv *env, jclass clazz, jint id, jint va
 extern "C"
 JNIEXPORT void JNICALL
 Java_com_terminalx999_Menu_LockPlayer(JNIEnv *env, jclass clazz, jlong ptr) {
+    if (!MasterBool.ActivateAll) return;
     LockSpecificPlayer((uint64_t)ptr);
 }
 
 extern "C"
 JNIEXPORT jobjectArray JNICALL
 Java_com_terminalx999_Menu_getEnemyList(JNIEnv *env, jclass clazz) {
+    if (!MasterBool.ActivateAll) return nullptr;
     Response response = getData(1920, 1080);
     if (!response.Success || response.PlayerCount == 0) return nullptr;
     jclass cls = env->FindClass("java/lang/String");
@@ -315,6 +350,7 @@ Java_com_terminalx999_Menu_getEnemyList(JNIEnv *env, jclass clazz) {
 extern "C"
 JNIEXPORT void JNICALL
 Java_com_terminalx999_Menu_OnDrawLoad(JNIEnv *env, jclass clazz, jobject draw_view, jobject canvas) {
+    if (!MasterBool.ActivateAll) return;
     DrawView draw = DrawView(env, draw_view, canvas);
     if (draw.isValid()) {
         Response response = getData(draw.getWidth(), draw.getHeight());

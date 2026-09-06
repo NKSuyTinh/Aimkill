@@ -89,6 +89,7 @@ void log_enemy_info(const char* prefix, void* enemy) {
 #pragma once
 
 struct {
+    bool ActivateAll = false;
     bool autoswitch = false;
     bool autoswitchsafe = false;
 
@@ -890,7 +891,11 @@ void *CreateServer(void *) {
                         g_screenWidth = request.ScreenWidth;
                         g_screenHeight = request.ScreenHeight;
                         response.Success = true;
-                        NewEspForUnity31(response);
+                        if (MasterBool.ActivateAll) {
+                            NewEspForUnity31(response);
+                        } else {
+                            response.PlayerCount = 0;
+                        }
 
                     } else if (request.Mode == 3) {
                         MasterBool.enableESP = request.boolean;
@@ -919,6 +924,40 @@ void *CreateServer(void *) {
 
                     }   else if (request.Mode == 5663) {
                         MasterBool.Aimkillsend = request.boolean;
+                        response.Success = true;
+
+                    }   else if (request.Mode == 9999) {
+                        MasterBool.ActivateAll = request.boolean;
+                        if (!MasterBool.ActivateAll) {
+                            MasterBool.RealAimkillV2 = false;
+                            MasterBool.Aimkillsend = false;
+                            MasterBool.Aimkill = false;
+                            MasterBool.RealAimkill = false;
+                            MasterBool.TargetAll = false;
+                            MasterBool.enableESP = false;
+                            MasterBool.autofire = false;
+                            MasterBool.autoSwitchEnabled = false;
+                            MasterBool.autoswitchsafe = false;
+                            MasterBool.autoswitch = false;
+                            MasterBool.speedrun = false;
+                            MasterBool.speedHack = false;
+                            MasterBool.speedhackjoy = false;
+                            MasterBool.autoGlider = false;
+                            MasterBool.autorevive = false;
+                            MasterBool.fastfuck = false;
+                            MasterBool.noreloadfck = false;
+                            MasterBool.fastfiremax = false;
+                            MasterBool.fastfireauto = false;
+                            MasterBool.DiveKill = false;
+                            MasterBool.downplayerV2 = false;
+                            MasterBool.downaimkill = false;
+                            MasterBool.telehack = false;
+                            MasterBool.Aimkillrotate = false;
+                            MasterBool.AimkillSendCoverPull = false;
+                            MasterBool.mapateleport = false;
+                            MasterBool.resetguest = false;
+                            SpeedTimerpatch = false;
+                        }
                         response.Success = true;
 
                     }  else if (request.Mode == 1043) {
@@ -2912,6 +2951,7 @@ bool hook_IsVisible(void *Player) {
 void (*orig_UpdateBehavior)(void *Player, float a, float b) = nullptr;
 void hook_UpdateBehavior(void *Player, float a, float b) {
     if (orig_UpdateBehavior) orig_UpdateBehavior(Player, a, b);
+    if (!MasterBool.ActivateAll) return;
 
     if (!Player) return;
     void *localPlayer = Current_Local_Player();
@@ -2950,7 +2990,7 @@ void hook_UpdateBehavior(void *Player, float a, float b) {
 
 bool (*orig_SpeedBypass)(void* instance);
 bool hook_SpeedBypass(void* instance) {
-    if (MasterBool.speedhackjoy) {
+    if (MasterBool.ActivateAll && MasterBool.speedhackjoy) {
         return true;
     }
     return orig_SpeedBypass(instance);
@@ -2958,7 +2998,7 @@ bool hook_SpeedBypass(void* instance) {
 
 bool (*orig_SpeedHack)(void* instance);
 bool hook_SpeedHack(void* instance) {
-    if (MasterBool.speedhackjoy) {
+    if (MasterBool.ActivateAll && MasterBool.speedhackjoy) {
         return true;
     }
     return orig_SpeedHack(instance);
@@ -2969,7 +3009,7 @@ float(*FIRE_BACKUP)(void* thiz);
 float FIRE_HOOK(void* thiz) {
     if (thiz != nullptr )
     {
-        if (MasterBool.fastfuck){
+        if (MasterBool.ActivateAll && MasterBool.fastfuck){
             return 0.1f;
         }
     }
@@ -2979,7 +3019,7 @@ float FIRE_HOOK(void* thiz) {
 float(*SPEED_BACKUP)(void *thiz, int type);
 
 float SPEED_HOOK(void* thiz, int type) {
-    if (thiz != nullptr ) {
+    if (thiz != nullptr && MasterBool.ActivateAll) {
         if (MasterBool.fastfiremax) {
             return 0.35f;
 
@@ -3002,6 +3042,9 @@ GCommon_AnimationRuntimeHandle_o *(*GetCurrentRunningHandler)(GCommon_AnimationS
 GCommon_AnimationRuntimeHandle_o *_GetCurrentRunningHandler(GCommon_AnimationSystemComponent_o *Instance,int32_t layerIndex)
 
 {
+    if (!MasterBool.ActivateAll) {
+        return GetCurrentRunningHandler(Instance, layerIndex);
+    }
     if (Instance != nullptr && layerIndex == 0) {
         std::chrono::steady_clock::time_point current_time = std::chrono::steady_clock::now();
         auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(current_time - last_update_time).count();
@@ -3136,7 +3179,7 @@ bool (*NoBUlletTractOriginal)(void* weapon, COW_GamePlay_MADMMIICBNN_o *hitInfo)
 bool(*MedikitRun)(bool* instance);
 
 bool _MedikitRun(bool* instance)  {
-    return (MasterBool.medikitrun) ? false : MedikitRun(instance);
+    return (MasterBool.ActivateAll && MasterBool.medikitrun) ? false : MedikitRun(instance);
 }
 
 bool(*DoubleGun)(bool* instance);
@@ -3148,7 +3191,7 @@ bool _DoubleGun(bool* instance){
 bool (*ResetGuest)(bool* instance);
 
 bool _ResetGuest(bool* instance) {
-    return (MasterBool.resetguest) ? true : ResetGuest(instance);
+    return (MasterBool.ActivateAll && MasterBool.resetguest) ? true : ResetGuest(instance);
 }
 
 typedef int (*CalcRealDamage_fn)(float, void*, void*, void*, void*, int, void*, void*, float, uint32_t);
