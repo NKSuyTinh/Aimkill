@@ -116,7 +116,7 @@ public class MainActivity extends Activity {
         try { kcFont = Typeface.createFromAsset(getAssets(), "kcfonts/ethnocentric.ttf"); } catch (Exception ignored) {}
 
         TextView partRed = new TextView(this);
-        partRed.setText("BanAimKill ");
+        partRed.setText("Onyx Aimkill ");
         partRed.setTextColor(Color.parseColor("#FF1A3C"));
         partRed.setTextSize(20);
         partRed.setTypeface(kcFont != null ? kcFont : Typeface.DEFAULT_BOLD, Typeface.BOLD);

@@ -80,6 +80,126 @@ public class Login {
     private static final String[] ALLOWED_PACKAGES = { "AIMCOVER" };
     private static final String KEYAUTH_URL = "https://keyauth.win/api/1.2/";
 
+    private static final String SENNI_API_URL     = "https://txhauth.store/verify.php";
+    private static final String SENNI_OWNER_NAME  = "namkhanhiusenni";
+    private static final String SENNI_API_NAME    = "Aimkill";
+    private static final String SENNI_API_SECRET  = "64c198aee174707380d4123b6b1170bc0b4893a7bc088f48c26a5ee24e8a5076";
+
+    private static String bytesToHex(byte[] bytes) {
+        StringBuilder sb = new StringBuilder();
+        for (byte b : bytes) {
+            sb.append(String.format("%02x", b));
+        }
+        return sb.toString();
+    }
+
+    private static String senniHmacSha256(String data, String key) {
+        try {
+            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+            javax.crypto.spec.SecretKeySpec secretKeySpec = new javax.crypto.spec.SecretKeySpec(
+                    key.getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA256");
+            mac.init(secretKeySpec);
+            byte[] hash = mac.doFinal(data.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return bytesToHex(hash);
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    private static String senniRandomHex(int len) {
+        java.security.SecureRandom random = new java.security.SecureRandom();
+        StringBuilder sb = new StringBuilder();
+        char[] chars = "0123456789abcdef".toCharArray();
+        for (int i = 0; i < len; ++i) {
+            sb.append(chars[random.nextInt(16)]);
+        }
+        return sb.toString();
+    }
+
+    private static AuthHelper.LoginResult senniVerifyLicense(Context ctx, String key) {
+        try {
+            String hwid = getHWIDSenni(ctx);
+            long ts = System.currentTimeMillis() / 1000L;
+            String nonce = senniRandomHex(32);
+
+            String canonical = "api=" + java.net.URLEncoder.encode(SENNI_API_NAME, "UTF-8")
+                    + "&hwid=" + java.net.URLEncoder.encode(hwid, "UTF-8")
+                    + "&key=" + java.net.URLEncoder.encode(key, "UTF-8")
+                    + "&nonce=" + java.net.URLEncoder.encode(nonce, "UTF-8")
+                    + "&owner=" + java.net.URLEncoder.encode(SENNI_OWNER_NAME, "UTF-8")
+                    + "×tamp=" + java.net.URLEncoder.encode(String.valueOf(ts), "UTF-8");
+            String sig = senniHmacSha256(canonical, SENNI_API_SECRET);
+            String postData = canonical + "&signature=" + java.net.URLEncoder.encode(sig, "UTF-8");
+
+            java.net.URL url = new java.net.URL(SENNI_API_URL);
+            java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("POST");
+            conn.setConnectTimeout(20000);
+            conn.setReadTimeout(20000);
+            conn.setRequestProperty("User-Agent", "SenniCuteAndroidClient/1.0");
+            conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+            conn.setRequestProperty("Accept", "application/json");
+            conn.setDoOutput(true);
+
+            try (java.io.OutputStream os = conn.getOutputStream()) {
+                os.write(postData.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                os.flush();
+            }
+
+            int code = conn.getResponseCode();
+            String raw = readStreamSenni(conn);
+            if (code != 200 || raw == null || raw.isEmpty() || raw.trim().startsWith("<")) {
+                return new AuthHelper.LoginResult(false, "Server error (" + code + ")", "AIMCOVER", "", "Inactive", "", hwid);
+            }
+
+            org.json.JSONObject json = new org.json.JSONObject(raw.trim());
+            boolean valid = json.optBoolean("valid", false);
+            String message = json.optString("message", valid ? "License valid" : "Invalid license");
+            long expiry = json.optLong("expiry", 0L);
+            String expiryStr = "";
+            if (expiry > 2000000000L) {
+                expiryStr = "Lifetime";
+            } else if (expiry > 0) {
+                java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US);
+                expiryStr = sdf.format(new java.util.Date(expiry * 1000L));
+            }
+            return new AuthHelper.LoginResult(valid, message, "AIMCOVER", expiryStr,
+                    valid ? "Active" : "Inactive", "", hwid);
+        } catch (Exception e) {
+            return new AuthHelper.LoginResult(false, e.getMessage() != null ? e.getMessage() : "Network error",
+                    "AIMCOVER", "", "Inactive", "", "");
+        }
+    }
+
+    private static String readStreamSenni(java.net.HttpURLConnection conn) {
+        try {
+            java.io.InputStream is = (conn.getResponseCode() >= 400) ? conn.getErrorStream() : conn.getInputStream();
+            if (is == null) return "";
+            java.io.BufferedReader br = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(is, java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = br.readLine()) != null) sb.append(line);
+            br.close();
+            return sb.toString();
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    private static String getHWIDSenni(Context ctx) {
+        try {
+            String base = android.provider.Settings.Secure.getString(
+                    ctx.getContentResolver(), android.provider.Settings.Secure.ANDROID_ID);
+            if (base == null || base.isEmpty()) base = "UNKNOWN_DEVICE";
+            base += android.os.Build.BOARD + android.os.Build.BRAND + android.os.Build.DEVICE + android.os.Build.ID;
+            if (base.length() < 20) base += "HWIDFILLEREXTRA123";
+            return base;
+        } catch (Exception e) {
+            return "UNKNOWN_DEVICE";
+        }
+    }
+
     public static final String PREF_NAME = "LoginPrefs";
     public static final String LICENSE_KEY = "key";
     private static final String PREFS_NAME = "mvp_prefs";
@@ -225,7 +345,7 @@ public class Login {
 
 
         TextView appTitle = new TextView(context);
-        appTitle.setText("BanAimKill AIMKILL MAX");
+        appTitle.setText("Onyx Aimkill AIMKILL MAX");
         appTitle.setTextColor(Color.WHITE);
         appTitle.setTextSize(11);
         appTitle.setSingleLine(true);
@@ -454,9 +574,11 @@ public class Login {
                             slideText.setText("VERIFYING...");
                             slideText.setTextColor(Color.GREEN);
 
-                            String key = input_username.getText().toString().trim();
+                            final String key = input_username.getText().toString().trim();
                             if (key.isEmpty()) {
-                                key = "BanAimKill";
+                                resetSlide(slideArea, slideText, sliderThumb, progressFill, thumbLp);
+                                Toast.makeText(context, "Please enter a license key!", Toast.LENGTH_SHORT).show();
+                                return true;
                             }
 
                             if (saveCheckBox.isChecked()) {
@@ -465,13 +587,20 @@ public class Login {
                                 preferences.edit().remove(LICENSE_KEY).apply();
                             }
 
-                            // Bypass KeyAuth - always succeed
                             sLoginUsername = key;
                             sLoginPassword = "Authenticated";
-                            AuthHelper.LoginResult result = new AuthHelper.LoginResult(
-                                    true, "License valid", "AIMCOVER",
-                                    "", "Active", "", "");
-                            showSellerInfoPopup(result, key);
+
+                            new Thread(() -> {
+                                final AuthHelper.LoginResult result = senniVerifyLicense(context, key);
+                                ((Activity) context).runOnUiThread(() -> {
+                                    if (result.success) {
+                                        showSellerInfoPopup(result, key);
+                                    } else {
+                                        resetSlide(slideArea, slideText, sliderThumb, progressFill, thumbLp);
+                                        Toast.makeText(context, result.message != null ? result.message : "Authentication failed", Toast.LENGTH_LONG).show();
+                                    }
+                                });
+                            }).start();
 
                         } else {
                             resetSlide(slideArea, slideText, sliderThumb, progressFill, thumbLp);
@@ -535,7 +664,7 @@ public class Login {
             try { kcFont = Typeface.createFromAsset(context.getAssets(), "kcfonts/ethnocentric.ttf"); } catch (Exception ignored) {}
 
             TextView hRed = new TextView(context);
-            hRed.setText("BanAimKill ");
+            hRed.setText("Onyx Aimkill ");
             hRed.setTextColor(PrimaryColor);
             hRed.setTextSize(10);
             hRed.setSingleLine(true);

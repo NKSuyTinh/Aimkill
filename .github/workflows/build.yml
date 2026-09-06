@@ -25,6 +25,22 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      - name: Build Native Libraries with NDK
+        run: |
+          NDK_DIR=$(find $ANDROID_SDK_ROOT/ndk -maxdepth 1 -name "21.*" | head -n 1)
+          if [ -z "$NDK_DIR" ]; then
+            NDK_DIR=$(find $ANDROID_SDK_ROOT/ndk -maxdepth 1 -name "23.*" -o -name "25.*" -o -name "26.*" | head -n 1)
+          fi
+          if [ -z "$NDK_DIR" ]; then
+            NDK_DIR=$(find $ANDROID_SDK_ROOT/ndk -maxdepth 1 -mindepth 1 | head -n 1)
+          fi
+          echo "Using NDK: $NDK_DIR"
+          "$NDK_DIR/ndk-build" -C app/src/main/jni
+          mkdir -p app/src/main/jniLibs/armeabi-v7a
+          cp -fv app/src/main/jni/libs/armeabi-v7a/*.so app/src/main/jniLibs/armeabi-v7a/ 2>/dev/null || true
+          cp -fv app/src/main/libs/armeabi-v7a/*.so app/src/main/jniLibs/armeabi-v7a/ 2>/dev/null || true
+          ls -la app/src/main/jniLibs/armeabi-v7a/
+
       - name: Build Debug APK
         run: ./gradlew assembleDebug --stacktrace
 
@@ -35,3 +51,13 @@ jobs:
           name: Onyx-Aimkill-APK
           path: app/build/outputs/apk/**/*.apk
           retention-days: 14
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Onyx Aimkill Build #${{ github.run_number }}
+          files: app/build/outputs/apk/**/*.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -45,89 +45,11 @@ public class DrawView extends View implements Runnable {
             ClearCanvas(canvas);
             time.setTime(System.currentTimeMillis());
             Menu.OnDrawLoad(this, canvas);
-            DrawWatermarkOverlay(canvas);
         }
     }
 
     public void DrawWatermarkOverlay(Canvas canvas) {
-        if (canvas == null) return;
-        int width = getWidth();
-        int height = getHeight();
-        if (width <= 0 || height <= 0) return;
-        // Top banner removed
-        float topBarHeight = 0f;
-
-        // 2. Middle Card 1: "BanAimKill | Free Fire 1.126.1 | v0.1"
-        String titleRed = "BanAimKill";
-        String titleRest = " | Free Fire 1.126.1 | v0.1";
-
-        Paint cardBgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        cardBgPaint.setColor(Color.argb(210, 25, 30, 40));
-        cardBgPaint.setStyle(Paint.Style.FILL);
-
-        Paint cardBorderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        cardBorderPaint.setColor(Color.argb(120, 255, 255, 255));
-        cardBorderPaint.setStyle(Paint.Style.STROKE);
-        cardBorderPaint.setStrokeWidth(1.5f);
-
-        Paint redTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        redTextPaint.setColor(Color.rgb(235, 45, 55));
-        redTextPaint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
-
-        Paint whiteTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        whiteTextPaint.setColor(Color.WHITE);
-        whiteTextPaint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.NORMAL));
-
-        float cardTextSize = (width > 1920 || height > 1920) ? 20f : 15f;
-        redTextPaint.setTextSize(cardTextSize);
-        whiteTextPaint.setTextSize(cardTextSize);
-
-        float redW = redTextPaint.measureText(titleRed);
-        float restW = whiteTextPaint.measureText(titleRest);
-        float box1Width = redW + restW + 24f;
-
-        Paint.FontMetrics cardFm = redTextPaint.getFontMetrics();
-        float box1Height = (cardFm.descent - cardFm.ascent) + 12f;
-
-        float box1Left = (width - box1Width) / 2f;
-        float box1Top = topBarHeight + 80f;
-
-        RectF box1Rect = new RectF(box1Left, box1Top, box1Left + box1Width, box1Top + box1Height);
-        canvas.drawRoundRect(box1Rect, 5f, 5f, cardBgPaint);
-        canvas.drawRoundRect(box1Rect, 5f, 5f, cardBorderPaint);
-
-        float box1Baseline = box1Top + (box1Height / 2f) - ((cardFm.ascent + cardFm.descent) / 2f);
-        canvas.drawText(titleRed, box1Left + 12f, box1Baseline, redTextPaint);
-        canvas.drawText(titleRest, box1Left + 12f + redW, box1Baseline, whiteTextPaint);
-
-        // 3. Middle Card 2: "⚠ Free AimKill đem bán là TUẤT OK"
-        String iconWarn = "\u26A0 ";
-        String fullWarningText = "Free AimKill \u0111em b\u00E1n l\u00E0 TU\u1EA4T OK";
-
-        Paint orangeTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        orangeTextPaint.setColor(Color.rgb(255, 170, 0));
-        orangeTextPaint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
-        orangeTextPaint.setTextSize(cardTextSize);
-
-        Paint warnIconPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        warnIconPaint.setColor(Color.rgb(255, 200, 0));
-        warnIconPaint.setTextSize(cardTextSize);
-
-        float iconW = warnIconPaint.measureText(iconWarn);
-        float warnW = orangeTextPaint.measureText(fullWarningText);
-        float box2Width = iconW + warnW + 24f;
-        float box2Height = box1Height;
-
-        float box2Left = (width - box2Width) / 2f;
-        float box2Top = box1Top + box1Height + 6f;
-
-        RectF box2Rect = new RectF(box2Left, box2Top, box2Left + box2Width, box2Top + box2Height);
-        canvas.drawRoundRect(box2Rect, 5f, 5f, cardBgPaint);
-        canvas.drawRoundRect(box2Rect, 5f, 5f, cardBorderPaint);
-
-        float box2Baseline = box2Top + (box2Height / 2f) - ((cardFm.ascent + cardFm.descent) / 2f);
-        canvas.drawText(iconWarn, box2Left + 12f, box2Baseline, warnIconPaint);
-        canvas.drawText(fullWarningText, box2Left + 12f + iconW, box2Baseline, orangeTextPaint);
+        // Disabled: Replaced by native in-game credit text
     }
 
     @Override

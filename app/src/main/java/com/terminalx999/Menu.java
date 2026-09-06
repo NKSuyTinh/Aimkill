@@ -425,7 +425,7 @@ public class Menu {
         headerLogo.setPadding(utils.FixDP(2), utils.FixDP(2), utils.FixDP(2), utils.FixDP(2));
 
         TextView titleRed = new TextView(context);
-        titleRed.setText("BanAimKill ");
+        titleRed.setText("Onyx Aimkill ");
         titleRed.setTextColor(PrimaryColor);
         titleRed.setTextSize(10);
         titleRed.setSingleLine(true);
@@ -848,7 +848,7 @@ public class Menu {
             }
 
             TextView creditHeader = new TextView(context);
-            creditHeader.setText("\u2605 BanAimKill \u2605");
+            creditHeader.setText("\u2605 Onyx Aimkill \u2605");
             creditHeader.setTextSize(9);
             creditHeader.setTypeface(Typeface.DEFAULT_BOLD);
             creditHeader.setTextColor(0xFF00E5FF);

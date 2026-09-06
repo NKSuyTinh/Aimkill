@@ -68,6 +68,8 @@ struct {
     float aimbotFOV = 0.0f;
     bool smartmove = false;
     bool Aimkillsend = false;
+    bool AimkillBrutal = false;
+    bool AimkillBody = false;
     bool AimkillSendAutoSwitch = false;
     bool AimkillSendCoverPull = false;
     bool SafeAimkill = false;
@@ -140,6 +142,8 @@ Java_com_terminalx999_Menu_Functions(JNIEnv *env, jclass clazz) {
     widget.Tab(OBFUSCATE("AIM"));
     widget.Switch(OBFUSCATE("ENABLE ALL"), 102);
     widget.Switch(OBFUSCATE("AIMKILL SEND"), 105);
+    widget.Switch(OBFUSCATE("AIMKILL BRUTAL"), 1051);
+    widget.Switch(OBFUSCATE("AIMKILL BODY"), 1052);
     widget.Switch(OBFUSCATE("SAFE AIMKILL"), 5661);
     widget.Switch(OBFUSCATE("REAL AIMKILL V2"), 5662);
     widget.Switch(OBFUSCATE("AUTO SWITCH SEND"), 106);
@@ -250,6 +254,16 @@ Java_com_terminalx999_Menu_ChangesID(JNIEnv *env, jclass clazz, jint id, jint va
         case 105:
             pAimbotPlayer.Aimkillsend = (value == 1);
             SendFeatuere(1044, pAimbotPlayer.Aimkillsend);
+            break;
+
+        case 1051:
+            pAimbotPlayer.AimkillBrutal = (value == 1);
+            SendFeatuere(1051, pAimbotPlayer.AimkillBrutal);
+            break;
+
+        case 1052:
+            pAimbotPlayer.AimkillBody = (value == 1);
+            SendFeatuere(1052, pAimbotPlayer.AimkillBody);
             break;
 
         case 5661:

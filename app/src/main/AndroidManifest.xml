@@ -11,7 +11,7 @@
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
-        android:label="BanAimKill"
+        android:label="Onyx Aimkill"
         android:supportsRtl="true">
         <meta-data
             android:name="com.google.android.actions"

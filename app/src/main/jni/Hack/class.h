@@ -146,6 +146,8 @@ Il2CppGetMethodOffset("Assembly-CSharp.dll","COW","GameFacade","CurrentGameSimul
 
 #define offset_ShowTeammateTips (uintptr_t) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW"), OBFUSCATE("UIInGameScene"), OBFUSCATE("ShowCenterUpTeammateTips"), 2)
 
+#define offset_ShowCreditPopup (uintptr_t) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW"), OBFUSCATE("UIInGameScene"), OBFUSCATE("ShowCreditBehaviorPopupMessage"), 1)
+
 
 #define offset_JumpBtnCtrl (uintptr_t) Il2CppGetFieldOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW"), OBFUSCATE("UIInGameScene"), OBFUSCATE("m_JumpBtnCtrl"))
 
@@ -628,6 +630,23 @@ static void* CurrentInGameUIScene() {
     return _CurrentUIScene();
 }
 
+static void* CurrentUIScene() {
+    return CurrentInGameUIScene();
+}
+
+static void* GetUIInGameScene() {
+    return CurrentInGameUIScene();
+}
+
+static void ShowCreditPopup(monoString *message) {
+    if (offset_ShowCreditPopup == 0) return;
+    void (*_Show)(void *, monoString *) = (void (*)(void *, monoString *))(offset_ShowCreditPopup);
+    void *ui = CurrentInGameUIScene();
+    if (ui != nullptr) {
+        _Show(ui, message);
+    }
+}
+
 
 //#define ShowDynamicupMessage (uintptr_t) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW"), OBFUSCATE("UIInGameScene"), OBFUSCATE("ShowDynamicPopupMessage"), 2)
 static void ShowDynamicPopupMessage(monoString *nick) {
@@ -745,10 +764,18 @@ static void ShowAssistantText(void* uiInstance, monoString* playerName, monoStri
     }
 }
 
-static monoString *U3DStrFormat(float distance, float vida) {
+static void AddTeammateHud(void *ui, monoString *nick, monoString *grup) {
+    ShowAssistantText(ui, nick, grup);
+}
+
+static monoString *U3DStrFormat(float distance, int hp) {
     char buffer[128] = {0};
-    sprintf(buffer, "[TX999] distance: %.2fm", distance);
+    sprintf(buffer, " WonderLand Store | HP: %d | Distance: %.f M", hp, distance);
     return U3DStr(buffer);
+}
+
+static monoString *U3DStrFormat(float distance, float vida) {
+    return U3DStrFormat(distance, (int)vida);
 }
 
 //#define _MainCameraTransform (uintptr_t) Il2CppGetFieldOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player"), OBFUSCATE("MainCameraTransform"))
