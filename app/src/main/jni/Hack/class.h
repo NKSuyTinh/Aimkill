@@ -607,6 +607,7 @@ static monoString *U3DStr(const char *str) {
 
 //#define m_currentUi Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW"), OBFUSCATE("GameFacade"), OBFUSCATE("CurrentInGameUIScene"), 0)
 static void* CurrentInGameUIScene() {
+    if (!m_currentUi) return nullptr;
     using fnCurrentUIScene = void* (*)();
     auto _CurrentUIScene = reinterpret_cast<fnCurrentUIScene>(m_currentUi);
     return _CurrentUIScene();

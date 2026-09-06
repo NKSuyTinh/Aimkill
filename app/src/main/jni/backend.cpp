@@ -508,39 +508,8 @@ void SetFootballState(void* player) {
     *(int *)((uintptr_t)physXData + 0xc) = 8;
 }
 
-static const uintptr_t pAddress_new = 0xC4C;
-static const uintptr_t pAddress_Firing = 0x540;
-
 void FootBallNew() {
-    static bool s_wasInvis = false;
-    if (!MasterBool.Invisible) {
-        if (s_wasInvis) {
-            void* LOCP = Current_Local_Player(); 
-            if (LOCP != nullptr) {
-                *(uint32_t*)((uintptr_t)LOCP + pAddress_new) = 3; 
-            }
-            s_wasInvis = false;
-        }
-        return;
-    }
-    s_wasInvis = true;
-    void* LOCP = Current_Local_Player(); 
-    if (LOCP == nullptr) return; 
-
-    uint32_t* fbStatePtr = (uint32_t*)((uintptr_t)LOCP + pAddress_new); 
-    bool isFiring = IsFiringPlayer(LOCP);
-    if (isFiring) {
-        *fbStatePtr = 3; 
-    } else {
-        *fbStatePtr = 1; 
-        static void (*FootBallWala)(void*) = nullptr;
-        if (!FootBallWala) {
-            FootBallWala = (void (*)(void*))Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player"), OBFUSCATE("IsUseFootball"), 0);
-        }
-        if (FootBallWala) {
-            FootBallWala(LOCP); 
-        }
-    }
+    // Handled safely in hook_IsVisible to prevent memory corruption
 }
 
 bool (*orig_CanTakeDamage)(void* _this, void* attacker, void* victim, void* weaponData, const void* method) = nullptr;
@@ -726,12 +695,13 @@ void FlyExploitSBG(void* localPlayer)
 {
     if (!localPlayer) return;
     if (!MasterBool.flyexploit) return;
+    if (!InActiveMatch()) return;
 
     void *transform = Component_get_transform(localPlayer);
     if (!transform) return;
 
     Vector3 pos = Transform_INTERNAL_GetPosition(transform);
-    pos.Y += 0.1f;   // 👈 cứ mỗi tick gọi → Y tăng đều 0.1 mét
+    pos.Y += 0.1f;
     Transform_set_position(transform, pos);
 }
 
@@ -2922,6 +2892,12 @@ static inline void*   dkv_match() {
 
 void DownKillMaxVip(void* closestHint = nullptr)
 {
+    if (!InActiveMatch()) {
+        g_dkvEnemies.clear();
+        g_dkvLocal = {false, Vector3::Zero(), Vector3::Zero()};
+        return;
+    }
+
     if (!MasterBool.downKillMaxVip && !g_dkvLocal.prev && g_dkvEnemies.empty()) return;
 
     void* local = Current_Local_Player(); if (!local) return;
@@ -2948,28 +2924,29 @@ void DownKillMaxVip(void* closestHint = nullptr)
         void* match = Current_Match();
         if (!match) return;
 
-        for (auto& kv : g_dkvEnemies) kv.second.alive = false;
         std::vector<void*> arr = GetEntities(match);
         if (arr.empty() && closestHint) {
             arr.push_back(closestHint);
         }
 
-        for (void* e : arr) {
-            if (!e || e == local)                         continue;
-            if (IsDieing(e) || GetHp(e) <= 0)             continue;
-            if (IsLocalTeammate(e))                       continue;
-            void* tf = Component_get_transform(e);        if (!tf) continue;
-            Vector3 P  = Transform_INTERNAL_GetPosition(tf);
+        if (on) {
+            for (auto& kv : g_dkvEnemies) kv.second.alive = false;
 
-            auto it = g_dkvEnemies.find(e);
-            if (it == g_dkvEnemies.end()) {
-                DKV_EnemyState s{e, P, P, true};
-                g_dkvEnemies[e] = s;
-                it = g_dkvEnemies.find(e);
-            } else it->second.alive = true;
-            DKV_EnemyState& st = it->second;
+            for (void* e : arr) {
+                if (!e || e == local)                         continue;
+                if (IsDieing(e) || GetHp(e) <= 0)             continue;
+                if (IsLocalTeammate(e))                       continue;
+                void* tf = Component_get_transform(e);        if (!tf) continue;
+                Vector3 P  = Transform_INTERNAL_GetPosition(tf);
 
-            if (on) {
+                auto it = g_dkvEnemies.find(e);
+                if (it == g_dkvEnemies.end()) {
+                    DKV_EnemyState s{e, P, P, true};
+                    g_dkvEnemies[e] = s;
+                    it = g_dkvEnemies.find(e);
+                } else it->second.alive = true;
+                DKV_EnemyState& st = it->second;
+
                 if (st.save.X==0 && st.save.Y==0 && st.save.Z==0) { st.save=P; st.cur=P; }
                 Vector3 tgt = Vector3(st.save.X, st.save.Y + kDownVip_EnemyY, st.save.Z);
 
@@ -2981,30 +2958,32 @@ void DownKillMaxVip(void* closestHint = nullptr)
                 }
                 st.cur = dkv_lerp(st.cur, tgt, kDownVip_LerpDown);
                 Transform_set_position(tf, st.cur);
-            } else {
-                if (st.save.X||st.save.Y||st.save.Z) Transform_set_position(tf, st.save);
             }
-        }
-        // dọn địch mất (respawn/leave)
-        for (auto it = g_dkvEnemies.begin(); it != g_dkvEnemies.end(); ) {
-            if (!it->second.alive) {
-                if (!on && (it->second.save.X||it->second.save.Y||it->second.save.Z)) {
-                    void* tf = Component_get_transform(it->second.ptr);
-                    if (tf) Transform_set_position(tf, it->second.save);
-                }
-                it = g_dkvEnemies.erase(it);
-            } else ++it;
-        }
-        // OFF cuối cùng → dọn sạch + forced restore
-        if (!on && !g_dkvEnemies.empty()) {
-            for (auto& kv : g_dkvEnemies) {
-                DKV_EnemyState& s = kv.second;
-                if (s.save.X||s.save.Y||s.save.Z) {
-                    void* tf = Component_get_transform(s.ptr);
-                    if (tf) Transform_set_position(tf, s.save);
+
+            // Clean up enemies that died or left
+            for (auto it = g_dkvEnemies.begin(); it != g_dkvEnemies.end(); ) {
+                if (!it->second.alive) {
+                    it = g_dkvEnemies.erase(it);
+                } else {
+                    ++it;
                 }
             }
-            g_dkvEnemies.clear();
+        } else {
+            // Restore when turned OFF: only restore if entity is still present in current arr
+            if (!g_dkvEnemies.empty()) {
+                for (auto& kv : g_dkvEnemies) {
+                    DKV_EnemyState& s = kv.second;
+                    bool exists = false;
+                    for (void* a : arr) {
+                        if (a == s.ptr) { exists = true; break; }
+                    }
+                    if (exists && (s.save.X!=0 || s.save.Y!=0 || s.save.Z!=0)) {
+                        void* tf = Component_get_transform(s.ptr);
+                        if (tf) Transform_set_position(tf, s.save);
+                    }
+                }
+                g_dkvEnemies.clear();
+            }
         }
     }
 }
@@ -3169,43 +3148,57 @@ void ApplyFlyMap(void* localPlayer) {
 // ======================================================================
 void FastFireMaxTimer() {
     if (!MasterBool.fastfiremax && !MasterBool.noDelay && !SpeedTimerpatch && !noDelayPatch) return;
+    if (!InActiveMatch()) return;
 
-    if (_GameFacade) {
-        void *StaticGameFacade = *(void **) ((uint64_t) _GameFacade + _StaticClass);
-        if (StaticGameFacade != nullptr) {
-            void *currentGame = *(void **) ((uint64_t) StaticGameFacade + _MatchGame);
-            if (currentGame != nullptr) {
-                void *timeService = *(void **) ((uintptr_t) currentGame + _GameTimer);
-                if (!timeService) return;
+    if (!_GameFacade) return;
+    void *StaticGameFacade = *(void **) ((uint64_t) _GameFacade + _StaticClass);
+    if (!StaticGameFacade) return;
 
-                // ===== Priority 1: Fast Fire Max (Rage mode) =====
-                if (MasterBool.fastfiremax) {
-                    if (!SpeedTimerpatch) {
-                        *(float *) ((uintptr_t) timeService + _FixedDeltaTime) = 0.20f;
-                        SpeedTimerpatch = true;
-                        noDelayPatch    = false;
-                    }
-                    return;
-                }
+    void *currentGame = *(void **) ((uint64_t) StaticGameFacade + _MatchGame);
+    if (!currentGame) return;
 
-                // ===== Priority 2: SPEED TIMER (No Delay) =====
-                if (MasterBool.noDelay) {
-                    if (!noDelayPatch) {
-                        *(float *) ((uintptr_t) timeService + _FixedDeltaTime) = 0.065f;
-                        noDelayPatch     = true;
-                        SpeedTimerpatch  = false;
-                    }
-                    return;
-                }
-
-                // ===== Khôi phục mặc định khi tắt cả 2 =====
-                if (SpeedTimerpatch || noDelayPatch) {
-                    *(float *) ((uintptr_t) timeService + _FixedDeltaTime) = 0.033f;
-                    SpeedTimerpatch = false;
-                    noDelayPatch    = false;
-                }
-            }
+    static uintptr_t s_offSimulationTimer = 0;
+    static uintptr_t s_offFixedDeltaTime = 0;
+    static bool s_checkedTimer = false;
+    if (!s_checkedTimer) {
+        s_offSimulationTimer = (uintptr_t) Il2CppGetFieldOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW"), OBFUSCATE("MatchGame"), OBFUSCATE("m_SimulationTimer"));
+        if (s_offSimulationTimer == 0) {
+            s_offSimulationTimer = (uintptr_t) Il2CppGetFieldOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW"), OBFUSCATE("COWGameBase"), OBFUSCATE("m_SimulationTimer"));
         }
+        s_offFixedDeltaTime = (uintptr_t) Il2CppGetFieldOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("GCommon"), OBFUSCATE("TimeService"), OBFUSCATE("m_FixedDeltaTime"));
+        s_checkedTimer = true;
+    }
+
+    if (s_offSimulationTimer == 0 || s_offFixedDeltaTime == 0) return;
+
+    void *timeService = *(void **) ((uintptr_t) currentGame + s_offSimulationTimer);
+    if (!timeService) return;
+
+    // ===== Priority 1: Fast Fire Max (Rage mode) =====
+    if (MasterBool.fastfiremax) {
+        if (!SpeedTimerpatch) {
+            *(float *) ((uintptr_t) timeService + s_offFixedDeltaTime) = 0.20f;
+            SpeedTimerpatch = true;
+            noDelayPatch    = false;
+        }
+        return;
+    }
+
+    // ===== Priority 2: SPEED TIMER (No Delay) =====
+    if (MasterBool.noDelay) {
+        if (!noDelayPatch) {
+            *(float *) ((uintptr_t) timeService + s_offFixedDeltaTime) = 0.065f;
+            noDelayPatch     = true;
+            SpeedTimerpatch  = false;
+        }
+        return;
+    }
+
+    // ===== Khôi phục mặc định khi tắt cả 2 =====
+    if (SpeedTimerpatch || noDelayPatch) {
+        *(float *) ((uintptr_t) timeService + s_offFixedDeltaTime) = 0.033f;
+        SpeedTimerpatch = false;
+        noDelayPatch    = false;
     }
 }
 
@@ -3236,7 +3229,13 @@ static void OnStopCatapultFalling(void* player) { }
 bool (*orig_IsVisible)(void *Player);
 
 bool hook_IsVisible(void *Player) {
-    return orig_IsVisible(Player);
+    if (MasterBool.Invisible && InActiveMatch()) {
+        void *localPlayer = Current_Local_Player();
+        if (Player != nullptr && Player == localPlayer) {
+            return false;
+        }
+    }
+    return orig_IsVisible ? orig_IsVisible(Player) : true;
 }
 
 void (*orig_UpdateBehavior)(void *Player, float a, float b) = nullptr;
@@ -3244,6 +3243,14 @@ void hook_UpdateBehavior(void *Player, float a, float b) {
     if (orig_UpdateBehavior) orig_UpdateBehavior(Player, a, b);
 
     if (!Player) return;
+    if (!InActiveMatch()) {
+        if (g_dkvLocal.prev || !g_dkvEnemies.empty()) {
+            g_dkvEnemies.clear();
+            g_dkvLocal = {false, Vector3::Zero(), Vector3::Zero()};
+        }
+        return;
+    }
+
     void *localPlayer = Current_Local_Player();
     if (Player == localPlayer && localPlayer != nullptr) {
         if (MasterBool.autoGlider) {
@@ -3255,10 +3262,13 @@ void hook_UpdateBehavior(void *Player, float a, float b) {
             FlyExploitSBG(localPlayer);
         }
 
-        DownPlayer::Update();
-        DownEnemy::Update();
-        DownKillMaxVip();
-        FootBallNew();
+        if (MasterBool.downKillMaxVip || g_dkvLocal.prev || !g_dkvEnemies.empty()) {
+            DownKillMaxVip();
+        }
+
+        if (MasterBool.Invisible) {
+            FootBallNew();
+        }
     }
 }
 
@@ -3311,73 +3321,15 @@ float FIRE_HOOK_NEW(void* thiz) { return FIRE_BACKUP_NEW(thiz); }
 
 #define offset_ShowCreditPopup (uintptr_t) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW"), OBFUSCATE("UIInGameScene"), OBFUSCATE("ShowCreditBehaviorPopupMessage"), 1)
 
-static void ShowCreditPopup(monoString *message) {
-    if (!message) return;
-    static uintptr_t s_offCredit = 0;
-    if (s_offCredit == 0) {
-        s_offCredit = (uintptr_t) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW"), OBFUSCATE("UIInGameScene"), OBFUSCATE("ShowCreditBehaviorPopupMessage"), 1);
-        if (s_offCredit == 0) {
-            s_offCredit = (uintptr_t) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW"), OBFUSCATE("UIInGameScene"), OBFUSCATE("ShowCreditBeahviorPopupMessage"), 1);
-        }
-    }
-    if (s_offCredit == 0) return;
-    void (*_Show)(void *, monoString *) = (void (*)(void *, monoString *))(s_offCredit);
-    void *ui = CurrentInGameUIScene();
-    if (ui) _Show(ui, message);
-}
+static void ShowCreditPopup(monoString *message) {}
 
-void RajaXModsCreditText() {  
-    ShowCreditPopup(U3DStr("Onyx Aimkill | discord.gg/hBGz2wy67T"));
-}
+void RajaXModsCreditText() {}
 
-static monoString *get_NickName(void* player) {
-    if (!player) return nullptr;
-    if (_OriginalName != 0 && _OriginalName != (uintptr_t)-1) {
-        monoString* name = *(monoString**)((uintptr_t)player + _OriginalName);
-        if (name) return name;
-    }
-    if (_NickName != 0 && _NickName != (uintptr_t)-1) {
-        monoString* name = *(monoString**)((uintptr_t)player + _NickName);
-        if (name) return name;
-    }
-    return nullptr;
-}
+static monoString *get_NickName(void* player) { return nullptr; }
 
-static void AddTeammateHud(void *ui, monoString *nick, monoString *grup) {
-    if (!ui || !nick || !grup) return;
-    if (m_addTeamHud == 0) return;
-    void (*_AddTeammateHud)(void *, monoString *, monoString *) = (void (*)(void *, monoString *, monoString *))m_addTeamHud;
-    _AddTeammateHud(ui, nick, grup);
-}
+static void AddTeammateHud(void *ui, monoString *nick, monoString *grup) {}
 
-void RxmGetNickName(void* targetVivo) {
-    if (!MasterBool.enableESP) return;
-    void *LocalPlayer = Current_Local_Player();
-    if (LocalPlayer != nullptr) {
-        void* targetEnemy = targetVivo;
-        if (targetEnemy != nullptr && !IsDieing(targetEnemy) && GetHp(targetEnemy) > 0) {
-            void *ui = CurrentInGameUIScene();
-            if (ui != nullptr) {
-                Vector3 EnemyHeadPosition = GetHeadPosition(targetEnemy);
-                Vector3 LocalPlayerPos = CameraPosition(LocalPlayer);
-
-                float distance = sqrtf(
-                    (LocalPlayerPos.X - EnemyHeadPosition.X) * (LocalPlayerPos.X - EnemyHeadPosition.X) +
-                    (LocalPlayerPos.Y - EnemyHeadPosition.Y) * (LocalPlayerPos.Y - EnemyHeadPosition.Y) +
-                    (LocalPlayerPos.Z - EnemyHeadPosition.Z) * (LocalPlayerPos.Z - EnemyHeadPosition.Z)
-                );
-
-                monoString *nick = get_NickName(targetEnemy);
-                if (!nick) {
-                    nick = (monoString*)U3DStr("Enemy");
-                }
-                int enemyHp = GetHp(targetEnemy);
-                monoString *distances = U3DStrFormat(distance, enemyHp);
-                AddTeammateHud(ui, nick, distances);
-            }
-        }
-    }
-}
+void RxmGetNickName(void* targetVivo) {}
 
 std::chrono::steady_clock::time_point last_update_time = std::chrono::steady_clock::now();
 GCommon_AnimationRuntimeHandle_o *(*GetCurrentRunningHandler)(GCommon_AnimationSystemComponent_o *Instance,int32_t layerIndex);
@@ -3478,18 +3430,6 @@ GCommon_AnimationRuntimeHandle_o *_GetCurrentRunningHandler(GCommon_AnimationSys
                 }
 
                 void *ClosestEnemy = ClosestEnemy360 ? ClosestEnemy360 : ClosestEnemyv2;
-
-                static float s_lastCreditShowTime = 0.0f;
-                float curTime = get_time();
-                if (curTime - s_lastCreditShowTime >= 2.0f) {
-                    s_lastCreditShowTime = curTime;
-                    ShowCenterUpTeammateTips(U3DStr("Copyright © WonderLand Store | Developed By onyxontop._"), 3.0f);
-                    RajaXModsCreditText();
-                }
-
-                if (ClosestEnemy != nullptr) {
-                    RxmGetNickName(ClosestEnemy);
-                }
 
                 if (MasterBool.Aimkillrotate && ClosestEnemy != nullptr) {
                     auto enemyTransform = Component_get_transform(ClosestEnemy);
@@ -3635,25 +3575,28 @@ bool hook_GameFacade_Send(uint32_t messageID, void *msg, uint8_t sendOption, boo
     return old_GameFacade_Send(messageID, msg, sendOption, cacheMsgAnyWay);
 }
 
+static void SafeHook(void *target, void *replace, void **backup) {
+    if (target != nullptr && target != (void*)-1) {
+        DobbyHook(target, replace, backup);
+    }
+}
+
 void *pthreadcreate(void *arg) {
     while (true) {
         if (getLibBase(targetLibName) != 0) {
             Il2CppAttach();
-            //DobbyHook((void*)getRealOffset(0x4315F54), (void*)New_FFAnti, (void**)&Old_FFAnti);
 
-            DobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"),OBFUSCATE("COW"), OBFUSCATE("GameConfig"),OBFUSCATE("get_ResetGuest"), 0),(void *) _ResetGuest, (void **) &ResetGuest);
-            DobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"),OBFUSCATE("GCommon"),OBFUSCATE("AnimationSystemComponent"),OBFUSCATE("GetCurrentRunningHandler"), 1),(void *) _GetCurrentRunningHandler, (void **) &GetCurrentRunningHandler);
-            DobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"),OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player"),OBFUSCATE("IsMoving"), 0),(void *) _MedikitRun, (void **) &MedikitRun);
-            DobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player"), OBFUSCATE("GetCurrentDashSpeed"), 0),(void *)hook_GetCurrentDashSpeed,(void **)&old_GetCurrentDashSpeed);
-            DobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("PlayerAttributes"), OBFUSCATE("get_FireIntervalScale"), 0), (void *) FIRE_HOOK, (void **) &FIRE_BACKUP);
-            DobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("PlayerAttributes"), OBFUSCATE("GetMultiplyFireIntervalScaleByWeaponType"), 1), (void *) FIRE_HOOK_NEW, (void **) &FIRE_BACKUP_NEW);
-            DobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("PlayerAttributes"), OBFUSCATE("GetSpeedScaleBySpeedType"), 1), (void *) SPEED_HOOK, (void **) &SPEED_BACKUP);
-            //DobbyHook((void *) offset_GameFacade_Send, (void *) hook_GameFacade_Send, (void **) &old_GameFacade_Send);
-            DobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player"), OBFUSCATE("UpdateBehavior"), 2), (void *)hook_UpdateBehavior, (void **) &orig_UpdateBehavior);
-            DobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player"), OBFUSCATE("IsVisible"), 0), (void *)hook_IsVisible, (void **) &orig_IsVisible);
-            // Hooks removed: Gravity, ShowDamageNum, ShowDamage, HighFPS120, HighFPS144
-            DobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("message"), OBFUSCATE("KANJBNIANHC"), OBFUSCATE("MBOHNCMOJDE"), 1), (void *)hook_SpeedBypass, (void **) &orig_SpeedBypass);
-            DobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player"), OBFUSCATE("IsFoldWingGliding"), 0), (void *)hook_SpeedHack, (void **) &orig_SpeedHack);
+            SafeHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"),OBFUSCATE("COW"), OBFUSCATE("GameConfig"),OBFUSCATE("get_ResetGuest"), 0),(void *) _ResetGuest, (void **) &ResetGuest);
+            SafeHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"),OBFUSCATE("GCommon"),OBFUSCATE("AnimationSystemComponent"),OBFUSCATE("GetCurrentRunningHandler"), 1),(void *) _GetCurrentRunningHandler, (void **) &GetCurrentRunningHandler);
+            SafeHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"),OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player"),OBFUSCATE("IsMoving"), 0),(void *) _MedikitRun, (void **) &MedikitRun);
+            SafeHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player"), OBFUSCATE("GetCurrentDashSpeed"), 0),(void *)hook_GetCurrentDashSpeed,(void **)&old_GetCurrentDashSpeed);
+            SafeHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("PlayerAttributes"), OBFUSCATE("get_FireIntervalScale"), 0), (void *) FIRE_HOOK, (void **) &FIRE_BACKUP);
+            SafeHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("PlayerAttributes"), OBFUSCATE("GetMultiplyFireIntervalScaleByWeaponType"), 1), (void *) FIRE_HOOK_NEW, (void **) &FIRE_BACKUP_NEW);
+            SafeHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("PlayerAttributes"), OBFUSCATE("GetSpeedScaleBySpeedType"), 1), (void *) SPEED_HOOK, (void **) &SPEED_BACKUP);
+            SafeHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player"), OBFUSCATE("UpdateBehavior"), 2), (void *)hook_UpdateBehavior, (void **) &orig_UpdateBehavior);
+            SafeHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player"), OBFUSCATE("IsVisible"), 0), (void *)hook_IsVisible, (void **) &orig_IsVisible);
+            SafeHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("message"), OBFUSCATE("KANJBNIANHC"), OBFUSCATE("MBOHNCMOJDE"), 1), (void *)hook_SpeedBypass, (void **) &orig_SpeedBypass);
+            SafeHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player"), OBFUSCATE("IsFoldWingGliding"), 0), (void *)hook_SpeedHack, (void **) &orig_SpeedHack);
 
             pthread_exit(0);
         }
