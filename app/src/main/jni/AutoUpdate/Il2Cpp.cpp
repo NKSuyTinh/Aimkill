@@ -266,17 +266,17 @@ size_t Il2CppGetFieldOffset(const char *image, const char *namespaze, const char
     void *img = Il2CppGetImageByName(image);
     if (!img) {
         __android_log_print(ANDROID_LOG_ERROR, g_LogTag, "Can't find image %s!", image);
-        return -1;
+        return 0;
     }
     void *klass = Il2CppGetClassType(image, namespaze, clazz);
     if (!klass) {
         __android_log_print(ANDROID_LOG_ERROR, g_LogTag, "Can't find field %s!", name);
-        return -1;
+        return 0;
     }
     void *field = il2cpp_class_get_field_from_name(klass, name);
     if (!field) {
         __android_log_print(ANDROID_LOG_ERROR, g_LogTag, "Can't find field %s in class %s!", clazz, name);
-        return -1;
+        return 0;
     }
     auto result = il2cpp_field_get_offset(field);
     __android_log_print(ANDROID_LOG_DEBUG, g_LogTag, "%s - [%s] %s::%s: %p", image, namespaze, clazz, name, (void *) result);
@@ -287,18 +287,18 @@ size_t Il2CppGetStaticFieldOffset(const char *image, const char *namespaze, cons
     void *img = Il2CppGetImageByName(image);
     if(!img) {
         __android_log_print(ANDROID_LOG_ERROR, g_LogTag, "Can't find image %s!", image);
-        return -1;
+        return 0;
     }
     void *klass = Il2CppGetClassType(image, namespaze, clazz);
     if(!klass) {
         __android_log_print(ANDROID_LOG_ERROR, g_LogTag, "Can't find field %s!", name);
-        return -1;
+        return 0;
     }
 
     FieldInfo *field = (FieldInfo*)il2cpp_class_get_field_from_name(klass, name);
     if(!field) {
         __android_log_print(ANDROID_LOG_ERROR, g_LogTag, "Can't find field %s in class %s!", clazz, name);
-        return -1;
+        return 0;
     }
     return (unsigned long)((uint64_t)field->parent->static_fields + field->offset);
 }

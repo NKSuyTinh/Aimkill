@@ -539,6 +539,24 @@ int InitServer() {
 
 #define _FastSwitch (uintptr_t) Il2CppGetFieldOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player"), OBFUSCATE("KDNABNMDIPA"))
 
+static bool g_isGameInitialized = false;
+
+static inline void* SafeGetHeadTF(void* player) {
+    if (!player) return nullptr;
+    if (_HeadTF == (uintptr_t)-1 || _HeadTF == 0) return nullptr;
+    void* headBone = *(void**)((uintptr_t)player + _HeadTF);
+    if (!headBone) return nullptr;
+    return TransformNode(headBone);
+}
+
+static inline void* SafeGetRootTF(void* player) {
+    if (!player) return nullptr;
+    if (_RootTF == (uintptr_t)-1 || _RootTF == 0) return nullptr;
+    void* rootBone = *(void**)((uintptr_t)player + _RootTF);
+    if (!rootBone) return nullptr;
+    return TransformNode(rootBone);
+}
+
 #define _UiScene (uintptr_t) Il2CppGetFieldOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("GCommon"), OBFUSCATE("BaseGame"), OBFUSCATE("m_UIScene"))
 
 #define _UiMapCtrl (uintptr_t) Il2CppGetFieldOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW"), OBFUSCATE("UIInGameScene"), OBFUSCATE("m_BigMapCtrl"))
@@ -940,11 +958,10 @@ void SpoofName() {
 std::vector<void*> GetEntities(void* currentGame) {
 
     std::vector<void *> entityList;
-
     if (!currentGame) return entityList;
+    if (_DicPlayer == (uintptr_t)-1 || _DicPlayer == 0) return entityList;
 
     uintptr_t entityDictionary = *(uintptr_t *) ((uintptr_t) currentGame + _DicPlayer);
-
     if (!entityDictionary) return entityList;
 
     bool newLayout = false;
@@ -1026,25 +1043,21 @@ void NewEspForUnity31(Response &response) {
 
 
 
-    void *MatchGame = *(void **) ((uint64_t) _GameFacade + _StaticClass);
+    if (!g_isGameInitialized || !_GameFacade || _StaticClass == 0) return;
 
+    void *MatchGame = *(void **) ((uintptr_t) _GameFacade + _StaticClass);
     if (!MatchGame) return;
 
-
-
-    void *ClassMatchGame = *(void **) ((uint64_t) MatchGame + _MatchGame);
-
+    if (_MatchGame == (uintptr_t)-1 || _MatchGame == 0) return;
+    void *ClassMatchGame = *(void **) ((uintptr_t) MatchGame + _MatchGame);
     if (!ClassMatchGame) return;
 
-
-
-    void *current_match = *(void **) ((uint64_t) ClassMatchGame + _Match);
-
+    if (_Match == (uintptr_t)-1 || _Match == 0) return;
+    void *current_match = *(void **) ((uintptr_t) ClassMatchGame + _Match);
     if (!current_match) return;
 
-
-
-    auto matchStatus = *(uint32_t *) ((uint64_t) current_match + _MatchState);
+    if (_MatchState == (uintptr_t)-1 || _MatchState == 0) return;
+    auto matchStatus = *(uint32_t *) ((uintptr_t) current_match + _MatchState);
 
 
 
@@ -1106,11 +1119,9 @@ void NewEspForUnity31(Response &response) {
 
 
 
-        void *HeadTF = TransformNode(*(void **) ((uintptr_t) player + _HeadTF));
-
-        void *RootTF = TransformNode(*(void **) ((uintptr_t) player + _RootTF));
-
-        void *LocalHeadTF = TransformNode(*(void **) ((uintptr_t) CurrentLocalPlayer + _HeadTF));
+        void *HeadTF = SafeGetHeadTF(player);
+        void *RootTF = SafeGetRootTF(player);
+        void *LocalHeadTF = SafeGetHeadTF(CurrentLocalPlayer);
 
 
 
@@ -3844,48 +3855,21 @@ namespace DownPlayer {
     bool    firstTime   = true;
 
     void Update() {
+        if (!MasterBool.DiveKill) {
+            if (!active) return;
+            void* lp = Current_Local_Player();
+            if (!lp) { active = false; firstTime = true; return; }
+            if (_HeadTF == (uintptr_t)-1 || _HeadTF == 0) { active = false; return; }
+            void* headBone = *(void**)((uintptr_t)lp + _HeadTF);
+            if (!headBone) { active = false; return; }
+            void* t = *(void**)((uintptr_t)headBone + 0x8);
+            if (!t) { active = false; return; }
+            void* o = *(void**)((uintptr_t)t + 0x8);
+            if (!o) { active = false; return; }
+            void* matrix = *(void**)((uintptr_t)o + 0x20);
+            if (!matrix) { active = false; return; }
 
-        void* lp = Current_Local_Player();
-        if (!lp) { active = false; return; }
-
-        void* headBone = *(void**)((uintptr_t)lp + _HeadTF);
-        if (!headBone) return;
-
-        void* t = *(void**)((uintptr_t)headBone + 0x8);
-        if (!t) return;
-        void* o = *(void**)((uintptr_t)t + 0x8);
-        if (!o) return;
-        void* matrix = *(void**)((uintptr_t)o + 0x20);
-        if (!matrix) return;
-
-        Vector3 current = *(Vector3*)((uintptr_t)matrix + 0x60);
-
-        if (MasterBool.DiveKill) {
-
-            if (!active || firstTime) {
-                originalPos = current;
-                active      = true;
-                firstTime   = false;
-            }
-
-            Vector3 underground = current;
-            underground.Y -= 3.0f;
-
-            void* pesBone = *(void**)((uintptr_t)lp + _RootTF);
-            if (!pesBone) return;
-            void* pesT = *(void**)((uintptr_t)pesBone + 0x8);
-            if (!pesT) return;
-            void* pesO = *(void**)((uintptr_t)pesT + 0x8);
-            if (!pesO) return;
-            void* pesMatrix = *(void**)((uintptr_t)pesO + 0x20);
-            if (!pesMatrix) return;
-
-            *(Vector3*)((uintptr_t)pesMatrix + 0x60) = underground;
-            *(Vector3*)((uintptr_t)matrix    + 0x60) = underground;
-
-        } else {
-
-            if (active) {
+            if (_RootTF != (uintptr_t)-1 && _RootTF != 0) {
                 void* pesBone = *(void**)((uintptr_t)lp + _RootTF);
                 if (pesBone) {
                     void* pesT = *(void**)((uintptr_t)pesBone + 0x8);
@@ -3899,11 +3883,55 @@ namespace DownPlayer {
                         }
                     }
                 }
-                *(Vector3*)((uintptr_t)matrix + 0x60) = originalPos;
-                active    = false;
-                firstTime = true;
+            }
+            *(Vector3*)((uintptr_t)matrix + 0x60) = originalPos;
+            active    = false;
+            firstTime = true;
+            return;
+        }
+
+        void* lp = Current_Local_Player();
+        if (!lp) { active = false; return; }
+
+        if (_HeadTF == (uintptr_t)-1 || _HeadTF == 0) return;
+        void* headBone = *(void**)((uintptr_t)lp + _HeadTF);
+        if (!headBone) return;
+
+        void* t = *(void**)((uintptr_t)headBone + 0x8);
+        if (!t) return;
+        void* o = *(void**)((uintptr_t)t + 0x8);
+        if (!o) return;
+        void* matrix = *(void**)((uintptr_t)o + 0x20);
+        if (!matrix) return;
+
+        Vector3 current = *(Vector3*)((uintptr_t)matrix + 0x60);
+
+        if (!active || firstTime) {
+            originalPos = current;
+            active      = true;
+            firstTime   = false;
+        }
+
+        Vector3 underground = current;
+        underground.Y -= 3.0f;
+
+        if (_RootTF != (uintptr_t)-1 && _RootTF != 0) {
+            void* pesBone = *(void**)((uintptr_t)lp + _RootTF);
+            if (pesBone) {
+                void* pesT = *(void**)((uintptr_t)pesBone + 0x8);
+                if (pesT) {
+                    void* pesO = *(void**)((uintptr_t)pesT + 0x8);
+                    if (pesO) {
+                        void* pesMatrix = *(void**)((uintptr_t)pesO + 0x20);
+                        if (pesMatrix) {
+                            *(Vector3*)((uintptr_t)pesMatrix + 0x60) = underground;
+                        }
+                    }
+                }
             }
         }
+
+        *(Vector3*)((uintptr_t)matrix + 0x60) = underground;
     }
 }
 
@@ -3915,6 +3943,7 @@ namespace DownEnemy {
 
     void ResetEnemy(void* enemy) {
         if (!enemy) return;
+        if (_HeadTF == (uintptr_t)-1 || _HeadTF == 0) return;
 
         void* headBone = *(void**)((uintptr_t)enemy + _HeadTF);
         if (!headBone) return;
@@ -3925,15 +3954,17 @@ namespace DownEnemy {
         void* matrix = *(void**)((uintptr_t)o + 0x20);
         if (!matrix) return;
 
-        void* pesBone = *(void**)((uintptr_t)enemy + _RootTF);
-        if (pesBone) {
-            void* pesT = *(void**)((uintptr_t)pesBone + 0x8);
-            if (pesT) {
-                void* pesO = *(void**)((uintptr_t)pesT + 0x8);
-                if (pesO) {
-                    void* pesMatrix = *(void**)((uintptr_t)pesO + 0x20);
-                    if (pesMatrix) {
-                        *(Vector3*)((uintptr_t)pesMatrix + 0x60) = originalPos;
+        if (_RootTF != (uintptr_t)-1 && _RootTF != 0) {
+            void* pesBone = *(void**)((uintptr_t)enemy + _RootTF);
+            if (pesBone) {
+                void* pesT = *(void**)((uintptr_t)pesBone + 0x8);
+                if (pesT) {
+                    void* pesO = *(void**)((uintptr_t)pesT + 0x8);
+                    if (pesO) {
+                        void* pesMatrix = *(void**)((uintptr_t)pesO + 0x20);
+                        if (pesMatrix) {
+                            *(Vector3*)((uintptr_t)pesMatrix + 0x60) = originalPos;
+                        }
                     }
                 }
             }
@@ -3967,6 +3998,7 @@ namespace DownEnemy {
         }
         lastEnemy = targetEnemy;
 
+        if (_HeadTF == (uintptr_t)-1 || _HeadTF == 0) return;
         void* headBone = *(void**)((uintptr_t)targetEnemy + _HeadTF);
         if (!headBone) return;
         void* t = *(void**)((uintptr_t)headBone + 0x8);
@@ -3982,17 +4014,23 @@ namespace DownEnemy {
         Vector3 underground = current;
         underground.Y -= 3.0f;
 
-        void* pesBone = *(void**)((uintptr_t)targetEnemy + _RootTF);
-        if (!pesBone) return;
-        void* pesT = *(void**)((uintptr_t)pesBone + 0x8);
-        if (!pesT) return;
-        void* pesO = *(void**)((uintptr_t)pesT + 0x8);
-        if (!pesO) return;
-        void* pesMatrix = *(void**)((uintptr_t)pesO + 0x20);
-        if (!pesMatrix) return;
+        if (_RootTF != (uintptr_t)-1 && _RootTF != 0) {
+            void* pesBone = *(void**)((uintptr_t)targetEnemy + _RootTF);
+            if (pesBone) {
+                void* pesT = *(void**)((uintptr_t)pesBone + 0x8);
+                if (pesT) {
+                    void* pesO = *(void**)((uintptr_t)pesT + 0x8);
+                    if (pesO) {
+                        void* pesMatrix = *(void**)((uintptr_t)pesO + 0x20);
+                        if (pesMatrix) {
+                            *(Vector3*)((uintptr_t)pesMatrix + 0x60) = underground;
+                        }
+                    }
+                }
+            }
+        }
 
-        *(Vector3*)((uintptr_t)pesMatrix + 0x60) = underground;
-        *(Vector3*)((uintptr_t)matrix    + 0x60) = underground;
+        *(Vector3*)((uintptr_t)matrix + 0x60) = underground;
     }
 }
 
@@ -4002,10 +4040,14 @@ void AllInOneDownKill(void *ClosestEnemy) {
     if (MasterBool.downplayer && ClosestEnemy != nullptr) {
 
         void *LocalPlayer = Current_Local_Player();
+        if (!LocalPlayer) return;
 
-        Vector3 gotten = Transform_INTERNAL_GetPosition(Component_get_transform(LocalPlayer));
+        void* lpTf = Component_get_transform(LocalPlayer);
+        void* enTf = Component_get_transform(ClosestEnemy);
+        if (!lpTf || !enTf) return;
 
-        Vector3 enemyPos = Transform_INTERNAL_GetPosition(Component_get_transform(ClosestEnemy));
+        Vector3 gotten = Transform_INTERNAL_GetPosition(lpTf);
+        Vector3 enemyPos = Transform_INTERNAL_GetPosition(enTf);
 
         float realDistance = sqrt(pow(enemyPos.X - gotten.X, 2) +pow(enemyPos.Y - gotten.Y, 2) +pow(enemyPos.Z - gotten.Z, 2));
 
@@ -4013,12 +4055,9 @@ void AllInOneDownKill(void *ClosestEnemy) {
 
             enemyPos.Y -= 1.9f;
 
-            Transform_set_position(Component_get_transform(ClosestEnemy), enemyPos);
-
+            Transform_set_position(enTf, enemyPos);
         }
-
     }
-
 }
 
 
@@ -4417,31 +4456,22 @@ struct message_C2S_RUDP_TakeDamage_Req_o2 {
 
 
 static bool InActiveMatch() {
-
-    if (!_GameFacade) return false;
-
-
+    if (!g_isGameInitialized) return false;
+    if (!_GameFacade || _StaticClass == 0) return false;
 
     void *matchGame = *(void **)((uintptr_t)_GameFacade + _StaticClass);
-
     if (!matchGame) return false;
 
-
-
+    if (_MatchGame == (uintptr_t)-1 || _MatchGame == 0) return false;
     void *classMatchGame = *(void **)((uintptr_t)matchGame + _MatchGame);
-
     if (!classMatchGame) return false;
 
-
-
+    if (_Match == (uintptr_t)-1 || _Match == 0) return false;
     void *current_match = *(void **)((uintptr_t)classMatchGame + _Match);
-
     if (!current_match) return false;
 
-
-
+    if (_MatchState == (uintptr_t)-1 || _MatchState == 0) return false;
     return *(uint32_t *)((uintptr_t)current_match + _MatchState) == 1;
-
 }
 
 
@@ -5586,8 +5616,7 @@ bool IsWeaponInAutoCharge_Hook(void *instance) {
 
     }
 
-    return old_IsWeaponInAutoCharge(instance);
-
+    return old_IsWeaponInAutoCharge ? old_IsWeaponInAutoCharge(instance) : false;
 }
 
 
@@ -5613,21 +5642,19 @@ void* BestEnemyFind(void* skipTarget)
     static void* persistentTarget = nullptr;
 
 
-
     void* StaticGameFacade = *(void**)((uint64_t)_GameFacade + _StaticClass);
-
     if (!StaticGameFacade) return nullptr;
 
+    if (_MatchGame == (uintptr_t)-1 || _MatchGame == 0) return nullptr;
     void *ClassMatchGame = *(void **) ((uint64_t) StaticGameFacade + _MatchGame);
-
     if (ClassMatchGame == nullptr) return nullptr;
 
+    if (_Match == (uintptr_t)-1 || _Match == 0) return nullptr;
     void *current_match = *(void **) ((uint64_t) ClassMatchGame + _Match);
-
     if (current_match == nullptr) return nullptr;
 
+    if (_MatchState == (uintptr_t)-1 || _MatchState == 0) return nullptr;
     auto matchStatus = *(uint32_t *) ((uint64_t) current_match + _MatchState);
-
     if (matchStatus != 1) {
 
         persistentTarget = nullptr;
@@ -5676,50 +5703,28 @@ void* BestEnemyFind(void* skipTarget)
 
             // Check FOV bounds
 
-            void *HeadTF = TransformNode(*(void **) ((uint64_t) persistentTarget + _HeadTF));
-
+            void *HeadTF = SafeGetHeadTF(persistentTarget);
             if (HeadTF != nullptr) {
-
                 Vector3 screenHead = WorldToScreenPoint(Transform_INTERNAL_GetPosition(HeadTF));
-
                 if (screenHead.Z > 0.01f && isInsideFOV((int)screenHead.X, (int)screenHead.Y)) {
-
                     return persistentTarget;
-
                 }
-
             }
-
         }
-
         persistentTarget = nullptr;
-
     }
 
-
-
     // --- 3. AUTO ACQUISITION (Find New Closest Visible) ---
-
     static std::vector<std::pair<float, void*>> s_adiFovList;
-
     s_adiFovList.clear();
-
     Vector3 v2Middle = Vector3((float)(g_screenWidth / 2), (float)(g_screenHeight / 2));
 
-
-
     auto players = GetEntities(current_match);
-
     for (auto player: players) {
-
         if (player == nullptr || player == CurrentLocalPlayer) continue;
-
         if (IsDieing(player) || GetHp(player) <= 0 || IsLocalTeammate(player)) continue;
 
-
-
-        void *HeadTF = TransformNode(*(void **) ((uint64_t) player + _HeadTF));
-
+        void *HeadTF = SafeGetHeadTF(player);
         if (HeadTF == nullptr) continue;
 
 
@@ -5759,56 +5764,46 @@ void* BestEnemyFind(void* skipTarget)
 
 
 void* BestEnemyFind360()
-
 {
-
     static std::vector<std::pair<float, void*>> enemyList;
-
     static size_t index = 0;
-
     enemyList.clear();
 
-    void* StaticGameFacade = *(void**)((uint64_t)_GameFacade + _StaticClass);
+    if (!g_isGameInitialized) return nullptr;
 
+    void* StaticGameFacade = *(void**)((uintptr_t)_GameFacade + _StaticClass);
     if (!StaticGameFacade) return nullptr;
 
-    void *ClassMatchGame = *(void **)((uint64_t)StaticGameFacade + _MatchGame);
-
+    if (_MatchGame == (uintptr_t)-1 || _MatchGame == 0) return nullptr;
+    void *ClassMatchGame = *(void **)((uintptr_t)StaticGameFacade + _MatchGame);
     if (!ClassMatchGame) return nullptr;
 
-    void *current_match = *(void **)((uint64_t)ClassMatchGame + _Match);
-
+    if (_Match == (uintptr_t)-1 || _Match == 0) return nullptr;
+    void *current_match = *(void **)((uintptr_t)ClassMatchGame + _Match);
     if (!current_match) return nullptr;
 
-    auto matchStatus = *(uint32_t*)((uint64_t)current_match + _MatchState);
-
+    if (_MatchState == (uintptr_t)-1 || _MatchState == 0) return nullptr;
+    auto matchStatus = *(uint32_t*)((uintptr_t)current_match + _MatchState);
     if (matchStatus != 1) return nullptr;
 
-    void *LocalPlayer = Current_Local_Player();
+    void *CurrentLocalPlayer = Current_Local_Player();
+    if (!CurrentLocalPlayer) return nullptr;
 
-    if (!LocalPlayer) return nullptr;
-
-    void *LocalTF = Component_get_transform(LocalPlayer);
-
+    void *LocalTF = Component_get_transform(CurrentLocalPlayer);
     if (!LocalTF) return nullptr;
 
     Vector3 LocalPos = Transform_INTERNAL_GetPosition(LocalTF);
 
     auto players = GetEntities(current_match);
-
     for (auto player: players) {
-
         void* enemy = player;
-
-        if (!enemy || enemy == LocalPlayer) continue;
-
+        if (!enemy || enemy == CurrentLocalPlayer) continue;
         if (IsDieing(enemy)) continue;
-
         if (IsLocalTeammate(enemy)) continue;
-
         if (GetHp(enemy) <= 0) continue;
 
-        void *HeadTF = TransformNode(*(void**)((uint64_t)enemy + _HeadTF));
+        void *HeadTF = SafeGetHeadTF(enemy);
+        if (!HeadTF) continue;
 
         if (!HeadTF) continue;
 
@@ -6656,53 +6651,51 @@ static void OnStopCatapultFalling(void* player) { }
 bool (*orig_IsVisible)(void *Player);
 
 bool hook_IsVisible(void *Player) {
-
-    return orig_IsVisible(Player);
-
+    return orig_IsVisible ? orig_IsVisible(Player) : true;
 }
 
-void (*orig_UpdateBehavior)(void *Player);
+void (*orig_UpdateBehavior)(void *Player, void *a1, void *a2);
 
-void hook_UpdateBehavior(void *Player){
+void hook_UpdateBehavior(void *Player, void *a1, void *a2){
+    if (orig_UpdateBehavior) {
+        orig_UpdateBehavior(Player, a1, a2);
+    }
 
-    orig_UpdateBehavior(Player);
+    if (!g_isGameInitialized || !Player) return;
+    if (!MasterBool.ActivateAll) return;
+    if (!InActiveMatch()) return;
 
+    void* localPlayer = Current_Local_Player();
+    if (!localPlayer || Player != localPlayer) return;
 
     if (MasterBool.football) {
-        if (Player == Current_Local_Player()) {
-            AutoFootball();
-        }
+        AutoFootball();
     }
 
     static bool lastAutoGliderState = false;
-
     if (MasterBool.autoGlider) {
-        if (Player == Current_Local_Player()) {
-            hilll_gliderbkc(Player);
-            TriggerInfiniteGlide(Player);
-            void* pTransform = Component_get_transform(Player);
-            if (pTransform) {
-                Vector3 currentPos = Transform_INTERNAL_GetPosition(pTransform);
-                currentPos.Y += 0.8f;
-                set_position_Injected(pTransform, currentPos);
-            }
+        hilll_gliderbkc(Player);
+        TriggerInfiniteGlide(Player);
+        void* pTransform = Component_get_transform(Player);
+        if (pTransform) {
+            Vector3 currentPos = Transform_INTERNAL_GetPosition(pTransform);
+            currentPos.Y += 0.8f;
+            set_position_Injected(pTransform, currentPos);
         }
         lastAutoGliderState = true;
     } else {
         if (lastAutoGliderState) {
-            if (Player == Current_Local_Player()) {
-                hilll_gliderbkc(Player);
-            }
+            hilll_gliderbkc(Player);
             lastAutoGliderState = false;
         }
     }
 
-    void* localPlayer = Current_Local_Player();
-    if (Player == localPlayer) {
+    if (MasterBool.DiveKill) {
         DownPlayer::Update();
+    }
+    if (MasterBool.downplayerV2) {
         DownEnemy::Update();
     }
-
 }
 
 
@@ -6710,19 +6703,17 @@ void hook_UpdateBehavior(void *Player){
 float (*orig_GetGravity)(void *Player);
 
 float hook_GetGravity(void *Player){
-
-    return orig_GetGravity(Player);
-
+    return orig_GetGravity ? orig_GetGravity(Player) : 1.0f;
 }
-
-
 
 void (*orig_ShowDamage)(void* thiz, int damage, void* colliderT, void* p, int shieldDamage, int weaponID, float delay);
 void hook_ShowDamage(void* thiz, int damage, void* colliderT, void* p, int shieldDamage, int weaponID, float delay) {
     if (MasterBool.hidedamage) {
         return;
     }
-    orig_ShowDamage(thiz, damage, colliderT, p, shieldDamage, weaponID, delay);
+    if (orig_ShowDamage) {
+        orig_ShowDamage(thiz, damage, colliderT, p, shieldDamage, weaponID, delay);
+    }
 }
 
 bool (*orig_get_ShowDamageNum)(void* thiz);
@@ -6730,7 +6721,7 @@ bool hook_get_ShowDamageNum(void* thiz) {
     if (MasterBool.hidedamage) {
         return false;
     }
-    return orig_get_ShowDamageNum(thiz);
+    return orig_get_ShowDamageNum ? orig_get_ShowDamageNum(thiz) : true;
 }
 
 bool (*orig_IsHighFPS120Open)();
@@ -6738,7 +6729,7 @@ bool hook_IsHighFPS120Open() {
     if (MasterBool.highfps) {
         return true;
     }
-    return orig_IsHighFPS120Open();
+    return orig_IsHighFPS120Open ? orig_IsHighFPS120Open() : false;
 }
 
 bool (*orig_IsHighFPS144Open)();
@@ -6746,15 +6737,15 @@ bool hook_IsHighFPS144Open() {
     if (MasterBool.highfps) {
         return true;
     }
-    return orig_IsHighFPS144Open();
+    return orig_IsHighFPS144Open ? orig_IsHighFPS144Open() : false;
 }
 
-bool (*orig_SpeedBypass)(void* instance);
-bool hook_SpeedBypass(void* instance) {
+bool (*orig_SpeedBypass)(void* instance, void* methodInfo);
+bool hook_SpeedBypass(void* instance, void* methodInfo) {
     if (MasterBool.speedhackjoy) {
         return true;
     }
-    return orig_SpeedBypass(instance);
+    return orig_SpeedBypass ? orig_SpeedBypass(instance, methodInfo) : false;
 }
 
 bool (*orig_SpeedHack)(void* instance);
@@ -6762,67 +6753,42 @@ bool hook_SpeedHack(void* instance) {
     if (MasterBool.speedhackjoy) {
         return true;
     }
-    return orig_SpeedHack(instance);
+    return orig_SpeedHack ? orig_SpeedHack(instance) : false;
 }
-
-
 
 float(*FIRE_BACKUP)(void* thiz);
 
 float FIRE_HOOK(void* thiz) {
-
-    if (thiz != nullptr ) 
-    {
+    if (thiz != nullptr) {
         if (MasterBool.fastfuck){
-
             return 0.1f;
         }
     }
-    return FIRE_BACKUP(thiz);
+    return FIRE_BACKUP ? FIRE_BACKUP(thiz) : 1.0f;
 }
-
-
 
 float(*SPEED_BACKUP)(void *thiz, int type);
 
 float SPEED_HOOK(void* thiz, int type) {
-
-    if (thiz != nullptr ) {
-
+    if (thiz != nullptr) {
         if (MasterBool.fastfiremax) {
-
             return 0.35f;
-
         } else if (MasterBool.fastfireauto) {
-
             return 1.7f;
-
         }
-
     }
-
-    return SPEED_BACKUP(thiz, type);
-
+    return SPEED_BACKUP ? SPEED_BACKUP(thiz, type) : 1.0f;
 }
 
+float(*FIRE_BACKUP_NEW)(void *thiz, int weaponType);
 
-
-float(*FIRE_BACKUP_NEW)(void *thiz);
-
-float FIRE_HOOK_NEW(void* thiz) {
-
+float FIRE_HOOK_NEW(void* thiz, int weaponType) {
     if (thiz != nullptr) {
-
         if (MasterBool.fireScaleHack && MasterBool.enableESP){
-
             return 0.1f;
-
         }
-
     }
-
-    return FIRE_BACKUP_NEW(thiz);
-
+    return FIRE_BACKUP_NEW ? FIRE_BACKUP_NEW(thiz, weaponType) : 1.0f;
 }
 
 
@@ -6834,44 +6800,29 @@ static std::chrono::steady_clock::time_point last_update_time_exploit = std::chr
 GCommon_AnimationRuntimeHandle_o *(*GetCurrentRunningHandler)(GCommon_AnimationSystemComponent_o *Instance,int32_t layerIndex);
 
 GCommon_AnimationRuntimeHandle_o *_GetCurrentRunningHandler(GCommon_AnimationSystemComponent_o *Instance,int32_t layerIndex)
-
 {
+    if (!GetCurrentRunningHandler) return nullptr;
+    if (Instance == nullptr || layerIndex != 0) {
+        return GetCurrentRunningHandler(Instance, layerIndex);
+    }
+    if (!g_isGameInitialized || !MasterBool.ActivateAll || !InActiveMatch()) {
+        return GetCurrentRunningHandler(Instance, layerIndex);
+    }
 
-    if (Instance != nullptr && layerIndex == 0) {
+    std::chrono::steady_clock::time_point current_time = std::chrono::steady_clock::now();
+    auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(current_time - last_update_time).count();
+    auto elapsed_time_exploit = std::chrono::duration_cast<std::chrono::milliseconds>(current_time - last_update_time_exploit).count();
 
-        std::chrono::steady_clock::time_point current_time = std::chrono::steady_clock::now();
-
-        auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(current_time - last_update_time).count();
-
-auto elapsed_time_exploit = std::chrono::duration_cast<std::chrono::milliseconds>(current_time - last_update_time_exploit).count();
-
-
-
-
-
-// 17ms tick + 0.1f step = same smoothness ratio as original 0.06f/10ms
-
-        // (0.1/17 ≈ 0.006 m/ms = 6 m/s, small discrete steps = no visible jitter)
-
-        if (elapsed_time_exploit > 17)
-
-        {
-
-            void *LocalPlayer = Current_Local_Player();
-
-            if (LocalPlayer != nullptr) {
-
-                FlyExploitSBG(LocalPlayer);
-
-            }
-
-            last_update_time_exploit = current_time;
-
+    // 17ms tick + 0.1f step = same smoothness ratio as original 0.06f/10ms
+    // (0.1/17 ≈ 0.006 m/ms = 6 m/s, small discrete steps = no visible jitter)
+    if (elapsed_time_exploit > 17)
+    {
+        void *LocalPlayer = Current_Local_Player();
+        if (LocalPlayer != nullptr) {
+            FlyExploitSBG(LocalPlayer);
         }
-
-
-
-        if (!MasterBool.ActivateAll) return GetCurrentRunningHandler(Instance, layerIndex);
+        last_update_time_exploit = current_time;
+    }
 
         if (elapsed_time > 35) {
 
@@ -7239,13 +7190,6 @@ auto elapsed_time_exploit = std::chrono::duration_cast<std::chrono::milliseconds
         }
 
         return GetCurrentRunningHandler(Instance, layerIndex);
-
-
-
-    }
-
-    return GetCurrentRunningHandler(Instance,layerIndex);
-
 }
 
 
@@ -7254,170 +7198,89 @@ auto elapsed_time_exploit = std::chrono::duration_cast<std::chrono::milliseconds
 
 
 
-// NoBulletTracking
-
 bool (*NoBUlletTractOriginal)(void* weapon, COW_GamePlay_MADMMIICBNN_o *hitInfo);
 
 bool NoBUlletTract(void* weapon, COW_GamePlay_MADMMIICBNN_o *hitInfo) {
-
-    if (hitInfo == nullptr) {
-
-        return NoBUlletTractOriginal ? NoBUlletTractOriginal(weapon, nullptr) : false;
-
+    if (hitInfo == nullptr || !g_isGameInitialized || !InActiveMatch()) {
+        return NoBUlletTractOriginal ? NoBUlletTractOriginal(weapon, hitInfo) : false;
     }
 
-
-
     if (MasterBool.enableESP && (MasterBool.NoBulletTracking || MasterBool.SafeSilentAim)) {
-
         void *LocalPlayer = Current_Local_Player();
-
         if (LocalPlayer != nullptr) {
-
             void *weaponOnHand = GetWeaponOnHand(LocalPlayer);
-
             if (weaponOnHand != nullptr) {
-
                 void *ClosestEnemys = GetEnemyInsideScreen();
-
                 if (ClosestEnemys != nullptr) {
-
-
-
                     void *enemyTF = Component_get_transform(ClosestEnemys);
-
                     Vector3 originalPos = {0.0f, 0.0f, 0.0f};
-
                     bool wasPulled = false;
 
-
-
                     if (enemyTF) {
-
                         originalPos = Transform_INTERNAL_GetPosition(enemyTF);
-
                     }
-
-
 
                     if ((MasterBool.smartmove || MasterBool.NoBulletTracking || MasterBool.SafeSilentAim) && !isVisible_Aimbot(ClosestEnemys)) {
-
                         if (MasterBool.SafeSilentAim) {
-
                             wasPulled = SafeSilentPull(ClosestEnemys, nullptr);
-
                         } else {
-
                             wasPulled = SilentGhostPullV2(ClosestEnemys, nullptr);
-
                         }
-
                     }
 
-
-
                     if(isVisible_Aimbot(ClosestEnemys)) {
-
-                        void *HeadTF = TransformNode(*(void **) ((uint64_t) ClosestEnemys + _HeadTF));
-
+                        void *HeadTF = SafeGetHeadTF(ClosestEnemys);
                         if (HeadTF != nullptr) {
-
                             Vector3 EnemayHead = Transform_INTERNAL_GetPosition(HeadTF);
-
-                            void *HeadTF2 = TransformNode(*(void **) ((uint64_t) LocalPlayer + _HeadTF));
-
+                            void *HeadTF2 = SafeGetHeadTF(LocalPlayer);
                             if (HeadTF2 != nullptr) {
-
                                 Vector3 LocalHead = Transform_INTERNAL_GetPosition(HeadTF2);
 
-
-
                                 auto HeadCollider = get_HeadCollider(ClosestEnemys);
-
                                 if (HeadCollider != nullptr) {
-
                                     void *headGameObj = get_gameObject(HeadCollider);
-
                                     if (headGameObj != nullptr) {
-
                                         *(void **) ((uint64_t) hitInfo + Hit_GameObject) = headGameObj;
-
                                         *(void **) ((uint64_t) hitInfo + Hit_HeadCollider) = HeadCollider;
-
                                         *(Vector3 *) ((uint64_t) hitInfo + Hit_HitLoc) = EnemayHead;
-
                                         *(Vector3 *) ((uint64_t) hitInfo + Hit_Normal) = EnemayHead;
 
-
-
                                         float v19 = EnemayHead.X - LocalHead.X;
-
                                         float dy = EnemayHead.Y - LocalHead.Y;
-
                                         float dz = EnemayHead.Z - LocalHead.Z;
-
                                         float v21 = sqrtf(v19 * v19 + dy * dy + dz * dz);
-
                                         Vector3 direction = {0, 0, 0};
-
                                         if (v21 > 0.001f) {
-
                                             direction.X = v19 / v21;
-
                                             direction.Y = dy / v21;
-
                                             direction.Z = dz / v21;
-
                                         }
 
                                         *(Vector3 *) ((uint64_t) hitInfo + Hit_RayDir) = direction;
-
                                         *(Vector3 *) ((uint64_t) hitInfo + Hit_StartPos) = LocalHead;
-
                                         *(Vector3 *) ((uint64_t) hitInfo + Hit_OrgStrtPos) = LocalHead;
-
                                         *(int *) ((uint64_t) hitInfo + Hit_Part) = 1;
-
                                         *(bool *) ((uint64_t) hitInfo + Hit_Ignore) = false;
-
                                     }
-
                                 }
-
                             }
-
                         }
-
                     }
-
-
 
                     // CRITICAL: Call original function WHILE pulled
-
-                    bool result = NoBUlletTractOriginal(weapon, hitInfo);
-
-
+                    bool result = NoBUlletTractOriginal ? NoBUlletTractOriginal(weapon, hitInfo) : false;
 
                     if (wasPulled && enemyTF) {
-
                         set_position_Injected(enemyTF, originalPos);
-
                     }
 
-
-
                     return result;
-
                 }
-
             }
-
         }
-
     }
 
-    return NoBUlletTractOriginal(weapon, hitInfo);
-
+    return NoBUlletTractOriginal ? NoBUlletTractOriginal(weapon, hitInfo) : false;
 }
 
 
@@ -7427,78 +7290,49 @@ bool NoBUlletTract(void* weapon, COW_GamePlay_MADMMIICBNN_o *hitInfo) {
 bool(*MedikitRun)(bool* instance);
 
 bool _MedikitRun(bool* instance)  {
-
-    return (MasterBool.medikitrun) ? false : MedikitRun(instance);
-
+    return (MasterBool.medikitrun) ? false : (MedikitRun ? MedikitRun(instance) : false);
 }
 
 bool(*DoubleGun)(bool* instance);
 
 bool _DoubleGun(bool* instance){
-
-    return (MasterBool.doublegun) ? true : DoubleGun(instance);
-
+    return (MasterBool.doublegun) ? true : (DoubleGun ? DoubleGun(instance) : false);
 }
-
-
 
 bool (*ResetGuest)(bool* instance);
 
 bool _ResetGuest(bool* instance) {
-
-    return (MasterBool.resetguest) ? true : ResetGuest(instance);
-
+    return (MasterBool.resetguest) ? true : (ResetGuest ? ResetGuest(instance) : false);
 }
-
-
 
 typedef int (*CalcRealDamage_fn)(float, void*, void*, void*, void*, int, void*, void*, float, uint32_t);
 
 static CalcRealDamage_fn orig_CalcRealDamage = nullptr;
 
 static int hook_CalcRealDamage(float baseDamage, void* hitPart, void* damageInfo, void* damager, void* beDamager, int weaponDataID, void* damagerWeaponDynamicInfo, void* weapon, float overrideHeadshot, uint32_t flag) {
-
+    if (!orig_CalcRealDamage) return 0;
     int result = orig_CalcRealDamage(baseDamage, hitPart, damageInfo, damager, beDamager, weaponDataID, damagerWeaponDynamicInfo, weapon, overrideHeadshot, flag);
 
     if ((MasterBool.Aimkill || MasterBool.Aimkill360) && result > 0) {
-
         int enemyHp = GetHp(beDamager);
-
         int weaponDamage = (int)baseDamage;
 
         if (enemyHp > 0 && enemyHp >= 30 && enemyHp <= 100 && weaponDamage > 0 && weaponDamage < 200 && weaponDamage >= enemyHp) {
-
             int killDamage = ((enemyHp + 9) / 10) * 10;
-
             if (killDamage < 10)  killDamage = 10;
-
             if (killDamage > 200) killDamage = 244;
-
             result = killDamage;
-
         } else {
-
             if (result > 200) {
-
                 result = 244;
-
             }
-
             else{
-
                 result = 244;
-
             }
-
         }
-
     }
-
     return result;
-
 }
-
-
 
 float (*old_GetCurrentDashSpeed)(void *instance);
 float hook_GetCurrentDashSpeed(void *instance) {
@@ -7508,23 +7342,16 @@ float hook_GetCurrentDashSpeed(void *instance) {
             return 9.0f;
         }
     }
-    return old_GetCurrentDashSpeed(instance);
+    return old_GetCurrentDashSpeed ? old_GetCurrentDashSpeed(instance) : 0.0f;
 }
-
-
 
 static bool (*O_get_isGrounded)(void* instance);
 
 bool Hook_get_isGrounded(void* instance) {
-
     if (MasterBool.flyhackop || MasterBool.snapfly || MasterBool.FlyUp == 1) {
-
         return true;
-
     }
-
-    return O_get_isGrounded(instance);
-
+    return O_get_isGrounded ? O_get_isGrounded(instance) : true;
 }
 
 
@@ -7647,65 +7474,57 @@ bool hook_GameFacade_Send(uint32_t messageID, void *msg, uint8_t sendOption, boo
 
 
 
-void *pthreadcreate(void *arg) {
-
-    while (true) {
-
-        if (getLibBase(targetLibName) != 0) {
-
-            Il2CppAttach();
-
-            //DobbyHook((void*)getRealOffset(0x4315F54), (void*)New_FFAnti, (void**)&Old_FFAnti);
-
-            DobbyHook((void*) Il2CppGetMethodOffset(OBFUSCATE("UnityEngine.PhysicsModule.dll"),OBFUSCATE("UnityEngine"),OBFUSCATE("CharacterController"),OBFUSCATE("get_isGrounded"),0),(void*)Hook_get_isGrounded,(void**)&O_get_isGrounded);
-
-
-
-            //DobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("ELMGJKHIIAA"), OBFUSCATE("EIHCOMDNIGJ"), 10), (void *)hook_CalcRealDamage, (void **)&orig_CalcRealDamage);
-
-            DobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"),OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player"),OBFUSCATE("IsWeaponInAutoCharge"), 0),(void *) IsWeaponInAutoCharge_Hook, (void **) &old_IsWeaponInAutoCharge);
-
-            DobbyHook((void *) offset_SetStartDamage, (void *) NoBUlletTract,(void **) &NoBUlletTractOriginal);
-
-            DobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"),OBFUSCATE("COW"), OBFUSCATE("GameConfig"),OBFUSCATE("get_ResetGuest"), 0),(void *) _ResetGuest, (void **) &ResetGuest);
-
-            DobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"),OBFUSCATE("GCommon"),OBFUSCATE("AnimationSystemComponent"),OBFUSCATE("GetCurrentRunningHandler"), 1),(void *) _GetCurrentRunningHandler, (void **) &GetCurrentRunningHandler);
-
-            DobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"),OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player"),OBFUSCATE("IsMoving"), 0),(void *) _MedikitRun, (void **) &MedikitRun);
-
-            DobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player"), OBFUSCATE("GetCurrentDashSpeed"), 0),(void *)hook_GetCurrentDashSpeed,(void **)&old_GetCurrentDashSpeed);
-
-            DobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("PlayerAttributes"), OBFUSCATE("get_FireIntervalScale"), 0), (void *) FIRE_HOOK, (void **) &FIRE_BACKUP);
-
-            DobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("PlayerAttributes"), OBFUSCATE("GetMultiplyFireIntervalScaleByWeaponType"), 1), (void *) FIRE_HOOK_NEW, (void **) &FIRE_BACKUP_NEW);
-
-            DobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("PlayerAttributes"), OBFUSCATE("GetSpeedScaleBySpeedType"), 1), (void *) SPEED_HOOK, (void **) &SPEED_BACKUP);
-
-            //DobbyHook((void *) offset_GameFacade_Send, (void *) hook_GameFacade_Send, (void **) &old_GameFacade_Send);
-
-            DobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player"), OBFUSCATE("UpdateBehavior"), 2), (void *)hook_UpdateBehavior, (void **) &orig_UpdateBehavior);
-
-            DobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player"), OBFUSCATE("IsVisible"), 0), (void *)hook_IsVisible, (void **) &orig_IsVisible);
-
-            DobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player.FGAHFBDAKPI"), OBFUSCATE("DAKCCEIPDFI"), 0), (void *)hook_GetGravity, (void **) &orig_GetGravity);
-
-            DobbyHook((void*)Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player"), OBFUSCATE("get_ShowDamageNum"), 0), (void*)hook_get_ShowDamageNum, (void**)&orig_get_ShowDamageNum);     
-            DobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.HUD"), OBFUSCATE("UIHudNameController"), OBFUSCATE("ShowDamage"), 6), (void *)hook_ShowDamage, (void **) &orig_ShowDamage);
-            DobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW"), OBFUSCATE("GameSettingData"), OBFUSCATE("IsHighFPS120Open"), 0), (void *)hook_IsHighFPS120Open, (void **) &orig_IsHighFPS120Open);
-            DobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW"), OBFUSCATE("GameSettingData"), OBFUSCATE("IsHighFPS144Open"), 0), (void *)hook_IsHighFPS144Open, (void **) &orig_IsHighFPS144Open);
-            DobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("message"), OBFUSCATE("KANJBNIANHC"), OBFUSCATE("MBOHNCMOJDE"), 1), (void *)hook_SpeedBypass, (void **) &orig_SpeedBypass);
-            DobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player"), OBFUSCATE("IsFoldWingGliding"), 0), (void *)hook_SpeedHack, (void **) &orig_SpeedHack);
-
-
-
-            pthread_exit(0);
-
-        }
-
-        return NULL;
-
+static inline void SafeDobbyHook(void *target, void *replace, void **origin) {
+    if (target != nullptr && replace != nullptr) {
+        DobbyHook(target, replace, origin);
     }
+}
 
+void *pthreadcreate(void *arg) {
+    while (getLibBase(targetLibName) == 0) {
+        sleep(1);
+    }
+    sleep(2);
+
+    Il2CppAttach();
+
+    SafeDobbyHook((void*) Il2CppGetMethodOffset(OBFUSCATE("UnityEngine.PhysicsModule.dll"),OBFUSCATE("UnityEngine"),OBFUSCATE("CharacterController"),OBFUSCATE("get_isGrounded"),0),(void*)Hook_get_isGrounded,(void**)&O_get_isGrounded);
+
+    SafeDobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"),OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player"),OBFUSCATE("IsWeaponInAutoCharge"), 0),(void *) IsWeaponInAutoCharge_Hook, (void **) &old_IsWeaponInAutoCharge);
+
+    SafeDobbyHook((void *) offset_SetStartDamage, (void *) NoBUlletTract,(void **) &NoBUlletTractOriginal);
+
+    SafeDobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"),OBFUSCATE("COW"), OBFUSCATE("GameConfig"),OBFUSCATE("get_ResetGuest"), 0),(void *) _ResetGuest, (void **) &ResetGuest);
+
+    SafeDobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"),OBFUSCATE("GCommon"),OBFUSCATE("AnimationSystemComponent"),OBFUSCATE("GetCurrentRunningHandler"), 1),(void *) _GetCurrentRunningHandler, (void **) &GetCurrentRunningHandler);
+
+    SafeDobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"),OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player"),OBFUSCATE("IsMoving"), 0),(void *) _MedikitRun, (void **) &MedikitRun);
+
+    SafeDobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player"), OBFUSCATE("GetCurrentDashSpeed"), 0),(void *)hook_GetCurrentDashSpeed,(void **)&old_GetCurrentDashSpeed);
+
+    SafeDobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("PlayerAttributes"), OBFUSCATE("get_FireIntervalScale"), 0), (void *) FIRE_HOOK, (void **) &FIRE_BACKUP);
+
+    SafeDobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("PlayerAttributes"), OBFUSCATE("GetMultiplyFireIntervalScaleByWeaponType"), 1), (void *) FIRE_HOOK_NEW, (void **) &FIRE_BACKUP_NEW);
+
+    SafeDobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("PlayerAttributes"), OBFUSCATE("GetSpeedScaleBySpeedType"), 1), (void *) SPEED_HOOK, (void **) &SPEED_BACKUP);
+
+    SafeDobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player"), OBFUSCATE("UpdateBehavior"), 2), (void *)hook_UpdateBehavior, (void **) &orig_UpdateBehavior);
+
+    SafeDobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player"), OBFUSCATE("IsVisible"), 0), (void *)hook_IsVisible, (void **) &orig_IsVisible);
+
+    SafeDobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player.FGAHFBDAKPI"), OBFUSCATE("DAKCCEIPDFI"), 0), (void *)hook_GetGravity, (void **) &orig_GetGravity);
+
+    SafeDobbyHook((void*)Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player"), OBFUSCATE("get_ShowDamageNum"), 0), (void*)hook_get_ShowDamageNum, (void**)&orig_get_ShowDamageNum);     
+    SafeDobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.HUD"), OBFUSCATE("UIHudNameController"), OBFUSCATE("ShowDamage"), 6), (void *)hook_ShowDamage, (void **) &orig_ShowDamage);
+    SafeDobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW"), OBFUSCATE("GameSettingData"), OBFUSCATE("IsHighFPS120Open"), 0), (void *)hook_IsHighFPS120Open, (void **) &orig_IsHighFPS120Open);
+    SafeDobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW"), OBFUSCATE("GameSettingData"), OBFUSCATE("IsHighFPS144Open"), 0), (void *)hook_IsHighFPS144Open, (void **) &orig_IsHighFPS144Open);
+    SafeDobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("message"), OBFUSCATE("KANJBNIANHC"), OBFUSCATE("MBOHNCMOJDE"), 1), (void *)hook_SpeedBypass, (void **) &orig_SpeedBypass);
+    SafeDobbyHook((void *) Il2CppGetMethodOffset(OBFUSCATE("Assembly-CSharp.dll"), OBFUSCATE("COW.GamePlay"), OBFUSCATE("Player"), OBFUSCATE("IsFoldWingGliding"), 0), (void *)hook_SpeedHack, (void **) &orig_SpeedHack);
+
+    g_isGameInitialized = true;
+
+    pthread_exit(0);
+    return NULL;
 }
 
 

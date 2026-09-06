@@ -109,18 +109,23 @@ while ($true) {
                 $releaseTag = "v1.0.$runNumber"
                 $releasePageUrl = "https://github.com/$Owner/$Repo/releases/tag/$releaseTag"
                 $apkUrl = ""
-                try {
-                    $relUri = "https://api.github.com/repos/$Owner/$Repo/releases/tags/$releaseTag"
-                    $relResp = Invoke-RestMethod -Uri $relUri -Headers $headers -Method Get
-                    if ($relResp.assets -and $relResp.assets.Count -gt 0) {
-                        $apkAsset = $relResp.assets | Where-Object { $_.name -like "*.apk" } | Select-Object -First 1
-                        if ($apkAsset) {
-                            $apkUrl = $apkAsset.browser_download_url
-                        } else {
-                            $apkUrl = $relResp.assets[0].browser_download_url
+                for ($r = 0; $r -lt 6; $r++) {
+                    try {
+                        $relUri = "https://api.github.com/repos/$Owner/$Repo/releases/tags/$releaseTag"
+                        $relResp = Invoke-RestMethod -Uri $relUri -Headers $headers -Method Get
+                        if ($relResp.assets -and $relResp.assets.Count -gt 0) {
+                            $apkAsset = $relResp.assets | Where-Object { $_.name -like "*.apk" } | Select-Object -First 1
+                            if ($apkAsset) {
+                                $apkUrl = $apkAsset.browser_download_url
+                                break
+                            } else {
+                                $apkUrl = $relResp.assets[0].browser_download_url
+                                break
+                            }
                         }
-                    }
-                } catch {}
+                    } catch {}
+                    Start-Sleep -Seconds 2
+                }
                 if (-not $apkUrl) {
                     $apkUrl = "https://github.com/$Owner/$Repo/releases/download/$releaseTag/Onyx.Aimkill.apk"
                 }

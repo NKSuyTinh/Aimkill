@@ -48,8 +48,13 @@ git add .github app keystore .gitignore scripts build_and_push_github.bat push_t
 :: 4. Kiem tra xem co thay doi can commit khong
 git diff --cached --quiet
 if %ERRORLEVEL% neq 0 (
-    echo [*] Dang tao commit moi...
-    git commit -m "Build APK Onyx Aimkill [%date% %time%]"
+    if not "%~1"=="" (
+        set "COMMIT_MSG=%~1"
+    ) else (
+        set "COMMIT_MSG=Fix triet de vang game va on dinh hook IL2CPP [%date% %time%]"
+    )
+    echo [*] Dang tao commit moi: !COMMIT_MSG!
+    git commit -m "!COMMIT_MSG!"
 ) else (
     echo [*] Khong co thay doi code chua commit, tiep tuc day len.
 )
