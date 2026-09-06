@@ -2131,6 +2131,7 @@ void StartAimKillSend(void* ClosestEnemy) {
         Vector3 originalPos = {0, 0, 0};
         bool wasPulled = false;
         bool visible = isVisible_Aimbot(target);
+        float dist = 0.0f;
 
         // For 100% REAL damage without wall obstruction or distance falloff:
         // Pull target to point-blank (1.5m) during hit calculation and restore immediately
@@ -2146,7 +2147,7 @@ void StartAimKillSend(void* ClosestEnemy) {
         float dy = hitPos.Y - curFirePos.Y;
         float dz = hitPos.Z - curFirePos.Z;
         float distReal = sqrtf(dx * dx + dy * dy + dz * dz);
-        float dist = distReal;
+        dist = distReal;
         Vector3 direction = {0, 0, 0};
         if (distReal > 0.0001f) {
             float inv = 1.0f / distReal;
